@@ -1,7 +1,6 @@
 import type { ChatRequest } from '../types/agent';
 
-// In a real app, this would be an env variable like import.meta.env.VITE_API_URL
-const API_URL = 'http://127.0.0.1:8000';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export const chatAPI = {
   sendMessageStream: async (
@@ -22,6 +21,11 @@ export const chatAPI = {
         },
         body: JSON.stringify(payload)
       });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Agent API ${response.status}: ${detail || response.statusText}`);
+      }
       
       if (!response.body) throw new Error('No readable stream');
       const reader = response.body.getReader();

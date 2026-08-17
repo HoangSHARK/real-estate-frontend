@@ -75,7 +75,7 @@ export const useChat = () => {
           setIsLoading(false);
         }
       );
-    } catch (error) {
+    } catch {
       // Errors are mostly caught in the stream handler's onError callback
     }
   }, []);

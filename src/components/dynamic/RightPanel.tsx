@@ -1,4 +1,3 @@
-import React from 'react';
 import { MapPin, Building, BedDouble, CircleDollarSign } from 'lucide-react';
 import type { UIAction, ActionMap, ActionCards, ActionForm, ActionDetail, ActionCompare } from '../../types/agent';
 
