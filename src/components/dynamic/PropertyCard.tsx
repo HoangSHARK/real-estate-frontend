@@ -11,6 +11,7 @@ export interface PropertyCardData {
 interface PropertyCardProps {
   property: PropertyCardData; showViewAll?: boolean; onViewAll?: () => void;
   onVisit: () => void; onConsult: () => void;
+  onSelect?: () => void;
 }
 
 const fallbackImage = 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=80';
@@ -24,15 +25,15 @@ const ActionRow = ({ icon, title, subtitle, onClick }: { icon: ReactNode; title:
   </button>
 );
 
-export const PropertyCard = ({ property, showViewAll, onViewAll, onVisit, onConsult }: PropertyCardProps) => {
+export const PropertyCard = ({ property, showViewAll, onViewAll, onVisit, onConsult, onSelect }: PropertyCardProps) => {
   const image = property.image_url || property.thumbnail || property.images?.[0] || fallbackImage;
   const specs = [property.floor_num ? `${property.floor_num} tầng` : property.floor_band, property.direction_balcony ? `Hướng ${property.direction_balcony}` : undefined, property.area_m2 ? `${property.area_m2.toLocaleString('vi-VN')} m²` : undefined].filter(Boolean);
 
   return (
     <article className="property-card">
-      <img className="property-hero" src={image} alt={property.title || 'Bất động sản'} onError={event => { event.currentTarget.src = fallbackImage; }} />
+      <img className="property-hero" src={image} alt={property.title || 'Bất động sản'} onClick={onSelect} style={{ cursor: onSelect ? 'pointer' : 'default' }} onError={event => { event.currentTarget.src = fallbackImage; }} />
       <div className="property-card-body">
-        <h3>{property.title || property.property_type || 'Bất động sản nổi bật'}</h3>
+        <h3 onClick={onSelect} style={{ cursor: onSelect ? 'pointer' : 'default' }}>{property.title || property.property_type || 'Bất động sản nổi bật'}</h3>
         <div className="property-price"><strong>{formatPrice(property.price_vnd)}</strong>{property.price_per_m2_vnd && <span>{Math.round(property.price_per_m2_vnd / 1e6)} triệu/m²</span>}</div>
         {specs.length > 0 && <p className="property-specs">{specs.join('  |  ')}</p>}
         <p className="property-address">{property.address || property.subtitle || property.project_name || property.province || 'Thông tin vị trí đang được cập nhật'}</p>
@@ -50,7 +51,7 @@ export const PropertyCarousel = ({ items, onSelect, onAction, showViewAll }: { i
   <div className="property-carousel" aria-label="Danh sách bất động sản">
     {items.map((item, index) => (
       <div className="property-slide" key={item.id || index}>
-        <PropertyCard property={item} showViewAll={showViewAll && index === 0} onViewAll={() => onSelect(item)} onVisit={() => onAction(item, 'US2_1_VISIT')} onConsult={() => onAction(item, 'US2_2_CONSULT')} />
+        <PropertyCard property={item} showViewAll={showViewAll && index === 0} onViewAll={() => onSelect(item)} onSelect={() => onSelect(item)} onVisit={() => onAction(item, 'US2_1_VISIT')} onConsult={() => onAction(item, 'US2_2_CONSULT')} />
       </div>
     ))}
   </div>
