@@ -1,8 +1,15 @@
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatAPI } from '../services/api';
 import type { Message } from '../types/agent';
+import {
+  cancelAgentProgress,
+  completeAgentProgress,
+  createAgentProgress,
+  failAgentProgress,
+  reduceProgressEvent,
+  updateProgressClock,
+} from '../utils/agentProgress';
 
-// Simple ID generator since we didn't install uuid
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
 export const useChat = () => {
@@ -17,72 +24,131 @@ export const useChat = () => {
           { label: '🏢 Thuê căn hộ', intent: 'US1_SEARCH' },
           { label: '✨ Đặt lịch tham quan', intent: 'US2_1_VISIT' },
           { label: '⚖️ Tư vấn chuyên sâu', intent: 'US2_2_CONSULT' },
-        ]}
-      ]
-    }
+        ] },
+      ],
+    },
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Use a ref to persist thread_id across renders without triggering effects
   const threadId = useRef<string>(`session_${generateId()}`);
+  const activeRequest = useRef<{
+    id: string;
+    controller: AbortController;
+    progressTimer: ReturnType<typeof setInterval>;
+  } | null>(null);
+
+  const stopActiveRequest = useCallback((markCancelled: boolean) => {
+    const request = activeRequest.current;
+    if (!request) return;
+    clearInterval(request.progressTimer);
+    request.controller.abort();
+    activeRequest.current = null;
+    if (markCancelled) {
+      setMessages(previous => previous.map(message => message.progress?.summaryStatus === 'running'
+        ? { ...message, progress: cancelAgentProgress(message.progress) }
+        : message));
+    }
+  }, []);
+
+  useEffect(() => () => stopActiveRequest(false), [stopActiveRequest]);
 
   const sendMessage = useCallback(async (content: string, explicitIntent?: string) => {
     if (!content.trim() && !explicitIntent) return;
 
-    // Add user message to UI immediately
-    const userMsg: Message = {
+    stopActiveRequest(true);
+
+    const requestContent = content || explicitIntent || '';
+    const userMessage: Message = {
       id: generateId(),
       role: 'user',
-      content: content || explicitIntent || '',
+      content: requestContent,
     };
-    
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(previous => [...previous, userMessage]);
     setIsLoading(true);
 
-    const botMsgId = generateId();
-    setMessages(prev => [...prev, {
-      id: botMsgId,
+    const botMessageId = generateId();
+    setMessages(previous => [...previous, {
+      id: botMessageId,
       role: 'bot',
       content: '',
       actions: [],
+      progress: createAgentProgress(),
     }]);
+
+    const requestId = generateId();
+    const controller = new AbortController();
+    const progressTimer = setInterval(() => {
+      if (activeRequest.current?.id !== requestId) return;
+      setMessages(previous => previous.map(message => message.id === botMessageId && message.progress
+        ? { ...message, progress: updateProgressClock(message.progress) }
+        : message));
+    }, 1_000);
+    activeRequest.current = { id: requestId, controller, progressTimer };
+
+    const isCurrentRequest = () => activeRequest.current?.id === requestId;
+    const finishRequest = () => {
+      if (!isCurrentRequest()) return false;
+      clearInterval(progressTimer);
+      activeRequest.current = null;
+      return true;
+    };
 
     try {
       await chatAPI.sendMessageStream(
-        content || explicitIntent || '',
+        requestContent,
         threadId.current,
         explicitIntent,
-        (textDelta) => {
-          setMessages(prev => prev.map(msg => 
-            msg.id === botMsgId ? { ...msg, content: msg.content + textDelta } : msg
-          ));
+        {
+          onText: (textDelta) => {
+            if (!isCurrentRequest()) return;
+            setMessages(previous => previous.map(message => message.id === botMessageId
+              ? {
+                  ...message,
+                  content: message.content + textDelta,
+                  progress: message.progress ? completeAgentProgress(message.progress) : undefined,
+                }
+              : message));
+          },
+          onAction: (action) => {
+            if (!isCurrentRequest()) return;
+            setMessages(previous => previous.map(message => message.id === botMessageId
+              ? { ...message, actions: [...(message.actions || []), action] }
+              : message));
+          },
+          onProgress: (event) => {
+            if (!isCurrentRequest()) return;
+            setMessages(previous => previous.map(message => message.id === botMessageId && message.progress
+              ? { ...message, progress: reduceProgressEvent(message.progress, event) }
+              : message));
+          },
+          onDone: () => {
+            if (!finishRequest()) return;
+            setMessages(previous => previous.map(message => message.id === botMessageId && message.progress
+              ? { ...message, progress: completeAgentProgress(message.progress) }
+              : message));
+            setIsLoading(false);
+          },
+          onError: (error) => {
+            if (!finishRequest()) return;
+            if (error instanceof DOMException && error.name === 'AbortError') {
+              setIsLoading(false);
+              return;
+            }
+            setMessages(previous => previous.map(message => message.id === botMessageId && message.progress
+              ? {
+                  ...message,
+                  progress: failAgentProgress(message.progress),
+                  retry: { content: requestContent, intent: explicitIntent },
+                }
+              : message));
+            setIsLoading(false);
+          },
         },
-        (action) => {
-          setMessages(prev => prev.map(msg => 
-            msg.id === botMsgId ? { ...msg, actions: [...(msg.actions || []), action] } : msg
-          ));
-        },
-        () => {
-          setIsLoading(false);
-        },
-        () => {
-          const errorMsg: Message = {
-            id: generateId(),
-            role: 'bot',
-            content: 'Xin lỗi, đã có lỗi kết nối tới máy chủ. Vui lòng thử lại sau.',
-          };
-          setMessages(prev => [...prev, errorMsg]);
-          setIsLoading(false);
-        }
+        controller.signal,
       );
     } catch {
-      // Errors are mostly caught in the stream handler's onError callback
+      // Stream errors are handled by the callback above.
     }
-  }, []);
+  }, [stopActiveRequest]);
 
-  return {
-    messages,
-    isLoading,
-    sendMessage,
-  };
+  return { messages, isLoading, sendMessage };
 };
