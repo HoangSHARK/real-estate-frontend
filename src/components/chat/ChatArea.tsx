@@ -21,7 +21,10 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
 
   const selectProperty = (item: PropertyCardData) => sendMessage(`Giới thiệu chi tiết căn ${item.id || item.title}`, 'US3_DETAIL');
   const propertyAction = (item: PropertyCardData, intent: string) => {
-    const label = intent === 'US2_1_VISIT' ? 'đặt lịch tham quan' : 'được tư vấn mua nhà';
+    let label = '';
+    if (intent === 'US2_1_VISIT') label = 'đặt lịch tham quan';
+    else if (intent === 'US2_2_CONSULT') label = 'được tư vấn mua nhà';
+    else if (intent === 'US5_MAP') label = 'xem bản đồ cùng với các tiện ích xung quanh';
     return sendMessage(`Tôi muốn ${label} cho căn ${item.id || item.title}`, intent);
   };
   const selectSuggestion = (suggestion: Suggestion) => sendMessage(suggestion.value || suggestion.label, suggestion.intent);
@@ -45,7 +48,7 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
             <section className="agent-response" key={message.id}>
               {message.content && <ChatTextAgent content={message.content} />}
               {cards?.items?.length > 0 && <PropertyCarousel items={cards.items} showViewAll={cards.items.length > 3} onSelect={selectProperty} onAction={propertyAction} />}
-              {detail?.listing && <PropertyCard property={detail.listing} onVisit={() => propertyAction(detail.listing, 'US2_1_VISIT')} onConsult={() => propertyAction(detail.listing, 'US2_2_CONSULT')} />}
+              {detail?.listing && <PropertyCard property={detail.listing} onVisit={() => propertyAction(detail.listing, 'US2_1_VISIT')} onConsult={() => propertyAction(detail.listing, 'US2_2_CONSULT')} onMap={() => propertyAction(detail.listing, 'US5_MAP')} />}
               {projectOptions.length > 0 && <ProjectOptionList options={projectOptions} onSelect={selectSuggestion} />}
               {advanced.length > 0 && <InlineActions actions={advanced} sendMessage={sendMessage} />}
               <FeedbackRow text={message.content} sourceCount={sources?.items?.length || 0} />

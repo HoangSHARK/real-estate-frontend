@@ -29,6 +29,44 @@ const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }
   return null;
 };
 
+const getAmenityEmoji = (type: string) => {
+  switch(type) {
+    case 'school':
+    case 'kindergarten':
+      return '🏫';
+    case 'hospital':
+    case 'clinic':
+      return '🏥';
+    case 'marketplace':
+      return '🛒';
+    case 'park':
+      return '🌳';
+    default:
+      return '📍';
+  }
+};
+
+const getPropertyIcon = () => {
+  return L.divIcon({
+    html: `<div style="font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); line-height: 1; display: flex; justify-content: center; align-items: center; width: 36px; height: 36px; background: white; border-radius: 50%; border: 2px solid #3b82f6; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🏠</div>`,
+    className: 'custom-property-icon',
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -36]
+  });
+};
+
+const getAmenityIcon = (type: string) => {
+  const emoji = getAmenityEmoji(type);
+  return L.divIcon({
+    html: `<div style="font-size: 16px; line-height: 1; display: flex; justify-content: center; align-items: center; width: 28px; height: 28px; background-color: white; border-radius: 50%; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">${emoji}</div>`,
+    className: 'custom-amenity-icon',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14]
+  });
+};
+
 export const MapView: React.FC<MapViewProps> = ({ mapData }) => {
   const points = mapData?.points || mapData?.listings || [];
   
@@ -73,12 +111,27 @@ export const MapView: React.FC<MapViewProps> = ({ mapData }) => {
             const lng = p.lng || p.longitude;
             if (!lat || !lng) return null;
             return (
-              <Marker key={idx} position={[lat, lng]}>
+              <Marker key={`point-${idx}`} position={[lat, lng]} icon={getPropertyIcon()}>
                 {(p.title || p.name) && (
                   <Popup>
-                    {p.title || p.name}
+                    <strong>{p.title || p.name}</strong>
+                    {p.price_vnd ? <div className="text-sm mt-1 text-slate-600">{(p.price_vnd / 1e9).toFixed(2)} Tỷ đ</div> : null}
                   </Popup>
                 )}
+              </Marker>
+            );
+          })}
+          {mapData?.amenities?.map((a: any, idx: number) => {
+            const lat = a.lat;
+            const lng = a.lng;
+            if (!lat || !lng) return null;
+            
+            return (
+              <Marker key={`amenity-${idx}`} position={[lat, lng]} icon={getAmenityIcon(a.type)}>
+                <Popup>
+                  <div className="font-medium text-sm text-slate-800">{a.name || 'Tiện ích'}</div>
+                  <div className="text-xs text-slate-500 capitalize">{a.type || 'Khác'}</div>
+                </Popup>
               </Marker>
             );
           })}

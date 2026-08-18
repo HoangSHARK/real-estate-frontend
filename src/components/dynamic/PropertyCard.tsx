@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CalendarDays, ChevronRight, Headphones } from 'lucide-react';
+import { CalendarDays, ChevronRight, Headphones, MapPin } from 'lucide-react';
 
 export interface PropertyCardData {
   id?: string; title?: string; property_type?: string; image_url?: string; thumbnail?: string;
@@ -10,7 +10,7 @@ export interface PropertyCardData {
 
 interface PropertyCardProps {
   property: PropertyCardData; showViewAll?: boolean; onViewAll?: () => void;
-  onVisit: () => void; onConsult: () => void;
+  onVisit: () => void; onConsult: () => void; onMap?: () => void;
   onSelect?: () => void;
 }
 
@@ -25,7 +25,7 @@ const ActionRow = ({ icon, title, subtitle, onClick }: { icon: ReactNode; title:
   </button>
 );
 
-export const PropertyCard = ({ property, showViewAll, onViewAll, onVisit, onConsult, onSelect }: PropertyCardProps) => {
+export const PropertyCard = ({ property, showViewAll, onViewAll, onVisit, onConsult, onMap, onSelect }: PropertyCardProps) => {
   const image = property.image_url || property.thumbnail || property.images?.[0] || fallbackImage;
   const specs = [property.floor_num ? `${property.floor_num} tầng` : property.floor_band, property.direction_balcony ? `Hướng ${property.direction_balcony}` : undefined, property.area_m2 ? `${property.area_m2.toLocaleString('vi-VN')} m²` : undefined].filter(Boolean);
 
@@ -40,6 +40,7 @@ export const PropertyCard = ({ property, showViewAll, onViewAll, onVisit, onCons
         {showViewAll && <button type="button" className="view-all-button" onClick={onViewAll}>Xem tất cả</button>}
       </div>
       <div className="property-actions">
+        {onMap && <ActionRow icon={<MapPin size={18} />} title="Xem vị trí" subtitle="Bản đồ quanh dự án" onClick={onMap} />}
         <ActionRow icon={<CalendarDays size={18} />} title="Đặt lịch tham quan" subtitle="Dự án, nhà mẫu / thực tế" onClick={onVisit} />
         <ActionRow icon={<Headphones size={18} />} title="Tư vấn mua nhà 1:1" subtitle="Phân tích chính sách chuyên sâu" onClick={onConsult} />
       </div>
@@ -51,7 +52,7 @@ export const PropertyCarousel = ({ items, onSelect, onAction, showViewAll }: { i
   <div className="property-carousel" aria-label="Danh sách bất động sản">
     {items.map((item, index) => (
       <div className="property-slide" key={item.id || index}>
-        <PropertyCard property={item} showViewAll={showViewAll && index === 0} onViewAll={() => onSelect(item)} onSelect={() => onSelect(item)} onVisit={() => onAction(item, 'US2_1_VISIT')} onConsult={() => onAction(item, 'US2_2_CONSULT')} />
+        <PropertyCard property={item} showViewAll={showViewAll && index === 0} onViewAll={() => onSelect(item)} onSelect={() => onSelect(item)} onVisit={() => onAction(item, 'US2_1_VISIT')} onConsult={() => onAction(item, 'US2_2_CONSULT')} onMap={() => onAction(item, 'US5_MAP')} />
       </div>
     ))}
   </div>
