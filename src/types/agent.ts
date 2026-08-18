@@ -82,4 +82,36 @@ export interface Message {
   role: 'user' | 'bot';
   content: string;
   actions?: UIAction[];
+  progress?: AgentProgressState;
+  retry?: {
+    content: string;
+    intent?: string;
+  };
+}
+
+export interface ProgressUpdate {
+  stage: string;
+  status: 'pending' | 'active' | 'completed' | 'warning' | 'error' | 'retrying';
+  message?: string;
+  elapsed_ms: number;
+}
+
+export type AgentProgressStatus = 'pending' | 'active' | 'completed' | 'warning' | 'error';
+
+export type AgentProgressStepId = 'understand' | 'plan' | 'retrieve' | 'synthesize';
+
+export interface AgentProgressStep {
+  id: AgentProgressStepId;
+  status: AgentProgressStatus;
+  message: string;
+  activatedAt: number;
+}
+
+export interface AgentProgressState {
+  steps: AgentProgressStep[];
+  startedAt: number;
+  lastElapsedMs: number;
+  totalElapsedMs?: number;
+  summaryStatus: 'running' | 'completed' | 'warning' | 'error' | 'cancelled';
+  collapsed: boolean;
 }

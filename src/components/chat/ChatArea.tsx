@@ -8,6 +8,7 @@ import { SuggestedPrompts } from '../dynamic/SuggestedPrompts';
 import { ChatBubbleUser } from './ChatBubbleUser';
 import { ChatInputBar } from './ChatInputBar';
 import { ChatTextAgent } from './ChatTextAgent';
+import { ProgressStatus } from './ProgressStatus';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -28,6 +29,8 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
     return sendMessage(`Tôi muốn ${label} cho căn ${item.id || item.title}`, intent);
   };
   const selectSuggestion = (suggestion: Suggestion) => sendMessage(suggestion.value || suggestion.label, suggestion.intent);
+  const latestBot = [...messages].reverse().find(message => message.role === 'bot');
+  const hasVisibleLatestProgress = Boolean(latestBot?.progress?.steps.length);
 
   return (
     <div className="chat-layout">
@@ -43,20 +46,29 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
           const advanced = message.actions?.filter(action => ['form', 'map', 'compare', 'overview'].includes(action.type)) || [];
           const projectOptions = clarify?.suggestions?.filter((item: Suggestion) => item.project_id) || [];
           const promptOptions = projectOptions.length ? [] : (clarify?.suggestions || cta?.items || []);
+          const hasProgress = Boolean(message.progress?.steps.length);
+          const hasResponseMeta = message.content.length > 0 || (message.actions?.length ?? 0) > 0;
+          const retry = message.retry;
 
           return (
             <section className="agent-response" key={message.id}>
+              {hasProgress && message.progress && (
+                <ProgressStatus
+                  progress={message.progress}
+                  onRetry={retry ? () => { void sendMessage(retry.content, retry.intent); } : undefined}
+                />
+              )}
               {message.content && <ChatTextAgent content={message.content} />}
               {cards?.items?.length > 0 && <PropertyCarousel items={cards.items} showViewAll={cards.items.length > 3} onSelect={selectProperty} onAction={propertyAction} />}
               {detail?.listing && <PropertyCard property={detail.listing} onVisit={() => propertyAction(detail.listing, 'US2_1_VISIT')} onConsult={() => propertyAction(detail.listing, 'US2_2_CONSULT')} onMap={() => propertyAction(detail.listing, 'US5_MAP')} />}
               {projectOptions.length > 0 && <ProjectOptionList options={projectOptions} onSelect={selectSuggestion} />}
               {advanced.length > 0 && <InlineActions actions={advanced} sendMessage={sendMessage} />}
-              <FeedbackRow text={message.content} sourceCount={sources?.items?.length || 0} />
+              {hasResponseMeta && <FeedbackRow text={message.content} sourceCount={sources?.items?.length || 0} />}
               {promptOptions.length > 0 && <SuggestedPrompts prompts={promptOptions} onSelect={selectSuggestion} />}
             </section>
           );
         })}
-        {isLoading && <div className="typing-dots" aria-label="Đang trả lời"><span /><span /><span /></div>}
+        {isLoading && !hasVisibleLatestProgress && <div className="typing-dots" aria-label="Đang trả lời"><span /><span /><span /></div>}
         <div ref={endRef} />
       </div>
       <ChatInputBar isLoading={isLoading} onSend={value => { void sendMessage(value); }} />
