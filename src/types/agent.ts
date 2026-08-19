@@ -22,11 +22,24 @@ export type UIAction =
   | ActionClarify 
   | ActionOverview 
   | ActionSources
-  | ActionDetail;
+  | ActionDetail
+  | ActionIntro
+  | ActionFollowup;
+
+export interface ActionIntro {
+  type: 'intro';
+  text: string;
+}
+
+export interface ActionFollowup {
+  type: 'followup';
+  text: string;
+}
 
 export interface ActionCards {
   type: 'cards';
   items: any[];
+  is_comparison?: boolean;
 }
 
 export interface ActionCTA {
@@ -46,6 +59,8 @@ export interface ActionMap {
 
 export interface ActionCompare {
   type: 'compare';
+  category?: 'financial_legal' | 'space_interior' | 'all';
+  title?: string;
   comparison: any;
 }
 
@@ -74,6 +89,7 @@ export interface Suggestion {
   label: string;
   intent?: string;
   value?: string;
+  display_text?: string;
   project_id?: string;
 }
 

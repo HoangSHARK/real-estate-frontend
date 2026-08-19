@@ -105,7 +105,12 @@ export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
       {mapAction && <div className="inline-map"><MapView mapData={mapAction.map} /></div>}
       {compareAction && (
         <div className="inline-compare">
-          <ComparisonTable comparisonData={compareAction.comparison} sendMessage={sendMessage} />
+          <ComparisonTable
+            comparisonData={compareAction.comparison}
+            category={compareAction.category}
+            title={compareAction.title}
+            sendMessage={sendMessage}
+          />
         </div>
       )}
       {overviewAction && <ProjectOverview overview={overviewAction.overview} />}

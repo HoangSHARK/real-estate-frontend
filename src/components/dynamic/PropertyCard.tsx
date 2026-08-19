@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CalendarDays, ChevronRight, Headphones } from 'lucide-react';
+import { CalendarDays, ChevronRight, Headphones, Scale } from 'lucide-react';
 
 export interface PropertyCardData {
   id?: string; title?: string; property_type?: string; image_url?: string; thumbnail?: string;
@@ -12,6 +12,10 @@ interface PropertyCardProps {
   property: PropertyCardData; showViewAll?: boolean; onViewAll?: () => void;
   onVisit: () => void; onConsult: () => void;
   onSelect?: () => void;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  disableSelect?: boolean;
+  showCompareToggle?: boolean;
 }
 
 const fallbackImage = 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=80';
@@ -25,17 +29,94 @@ const ActionRow = ({ icon, title, subtitle, onClick }: { icon: ReactNode; title:
   </button>
 );
 
-export const PropertyCard = ({ property, showViewAll, onViewAll, onVisit, onConsult, onSelect }: PropertyCardProps) => {
+export const PropertyCard = ({
+  property,
+  showViewAll,
+  onViewAll,
+  onVisit,
+  onConsult,
+  onSelect,
+  isSelected,
+  onToggleSelect,
+  disableSelect,
+  showCompareToggle,
+}: PropertyCardProps) => {
   const image = property.image_url || property.thumbnail || property.images?.[0] || fallbackImage;
-  const specs = [property.floor_num ? `${property.floor_num} tầng` : property.floor_band, property.direction_balcony ? `Hướng ${property.direction_balcony}` : undefined, property.area_m2 ? `${property.area_m2.toLocaleString('vi-VN')} m²` : undefined].filter(Boolean);
+
+  // 1. Diện tích (bỏ nếu null hoặc <= 0)
+  const areaText =
+    property.area_m2 && Number(property.area_m2) > 0
+      ? `${Number(property.area_m2).toLocaleString('vi-VN')} m²`
+      : null;
+
+  // 2. Hướng (bỏ nếu null hoặc rỗng)
+  const directionText =
+    property.direction_balcony && property.direction_balcony.trim()
+      ? `Hướng ${property.direction_balcony.trim()}`
+      : null;
+
+  // 3. Tầng (Ưu tiên floor_num > 0, sau đó đến floor_band; bỏ nếu null/0)
+  let floorText: string | null = null;
+  if (property.floor_num && Number(property.floor_num) > 0) {
+    floorText = `Tầng ${property.floor_num}`;
+  } else if (property.floor_band && property.floor_band.trim()) {
+    floorText = property.floor_band.trim();
+  }
+
+  // Sắp xếp đúng thứ tự: Diện tích -> Hướng -> Tầng
+  const specs = [areaText, directionText, floorText].filter(Boolean) as string[];
+  const shouldShowToggle = Boolean(onToggleSelect && (showCompareToggle || isSelected));
+
+  const handleCardClick = () => {
+    if (shouldShowToggle) {
+      // Khi đang ở chế độ so sánh: Click ảnh/tiêu đề sẽ chọn/bỏ chọn căn, không mở chi tiết
+      if (!disableSelect || isSelected) {
+        onToggleSelect?.();
+      }
+    } else {
+      // Chế độ bình thường: Xem chi tiết
+      onSelect?.();
+    }
+  };
 
   return (
-    <article className="property-card">
-      <img className="property-hero" src={image} alt={property.title || 'Bất động sản'} onClick={onSelect} style={{ cursor: onSelect ? 'pointer' : 'default' }} onError={event => { event.currentTarget.src = fallbackImage; }} />
+    <article className={`property-card ${isSelected ? 'is-selected' : ''}`}>
+      <div className="property-hero-wrap">
+        <img
+          className="property-hero"
+          src={image}
+          alt={property.title || 'Bất động sản'}
+          onClick={handleCardClick}
+          style={{ cursor: 'pointer' }}
+          onError={event => { event.currentTarget.src = fallbackImage; }}
+        />
+        {shouldShowToggle && (
+          <button
+            type="button"
+            className={`property-compare-toggle ${isSelected ? 'selected' : ''} ${disableSelect && !isSelected ? 'disabled' : ''} animate-pop`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!disableSelect || isSelected) {
+                onToggleSelect?.();
+              }
+            }}
+            title={isSelected ? 'Bỏ chọn so sánh' : disableSelect ? 'Đã chọn tối đa 4 căn' : 'Thêm vào danh sách so sánh'}
+          >
+            <Scale size={13} />
+            <span>{isSelected ? '✓ Đã chọn' : '+ So sánh'}</span>
+          </button>
+        )}
+      </div>
       <div className="property-card-body">
-        <h3 onClick={onSelect} style={{ cursor: onSelect ? 'pointer' : 'default' }}>{property.title || property.property_type || 'Bất động sản nổi bật'}</h3>
+        <h3 onClick={handleCardClick} style={{ cursor: 'pointer' }}>{property.title || property.property_type || 'Bất động sản nổi bật'}</h3>
         <div className="property-price"><strong>{formatPrice(property.price_vnd)}</strong>{property.price_per_m2_vnd && <span>{Math.round(property.price_per_m2_vnd / 1e6)} triệu/m²</span>}</div>
-        {specs.length > 0 && <p className="property-specs">{specs.join('  |  ')}</p>}
+        <div className="property-specs-tag-row">
+          {specs.map((item, idx) => (
+            <span key={idx} className="property-spec-pill">
+              {item}
+            </span>
+          ))}
+        </div>
         <p className="property-address">{property.address || property.subtitle || property.project_name || property.province || 'Thông tin vị trí đang được cập nhật'}</p>
         {showViewAll && <button type="button" className="view-all-button" onClick={onViewAll}>Xem tất cả</button>}
       </div>
@@ -47,12 +128,51 @@ export const PropertyCard = ({ property, showViewAll, onViewAll, onVisit, onCons
   );
 };
 
-export const PropertyCarousel = ({ items, onSelect, onAction, showViewAll }: { items: PropertyCardData[]; onSelect: (item: PropertyCardData) => void; onAction: (item: PropertyCardData, intent: string) => void; showViewAll?: boolean; }) => (
-  <div className="property-carousel" aria-label="Danh sách bất động sản">
-    {items.map((item, index) => (
-      <div className="property-slide" key={item.id || index}>
-        <PropertyCard property={item} showViewAll={showViewAll && index === 0} onViewAll={() => onSelect(item)} onSelect={() => onSelect(item)} onVisit={() => onAction(item, 'US2_1_VISIT')} onConsult={() => onAction(item, 'US2_2_CONSULT')} />
-      </div>
-    ))}
-  </div>
-);
+export const PropertyCarousel = ({
+  items,
+  onSelect,
+  onAction,
+  showViewAll,
+  selectedItems = [],
+  onToggleSelect,
+  maxSelect = 4,
+  showCompareToggle = false,
+}: {
+  items: PropertyCardData[];
+  onSelect: (item: PropertyCardData) => void;
+  onAction: (item: PropertyCardData, intent: string) => void;
+  showViewAll?: boolean;
+  selectedItems?: PropertyCardData[];
+  onToggleSelect?: (item: PropertyCardData) => void;
+  maxSelect?: number;
+  showCompareToggle?: boolean;
+}) => {
+  const isMaxReached = selectedItems.length >= maxSelect;
+
+  return (
+    <div className="property-carousel" aria-label="Danh sách bất động sản">
+      {items.map((item, index) => {
+        const isSelected = selectedItems.some(
+          (s) => (s.id && s.id === item.id) || (s.title && s.title === item.title)
+        );
+
+        return (
+          <div className="property-slide" key={item.id || index}>
+            <PropertyCard
+              property={item}
+              showViewAll={showViewAll && index === 0}
+              onViewAll={() => onSelect(item)}
+              onSelect={() => onSelect(item)}
+              onVisit={() => onAction(item, 'US2_1_VISIT')}
+              onConsult={() => onAction(item, 'US2_2_CONSULT')}
+              isSelected={isSelected}
+              onToggleSelect={onToggleSelect ? () => onToggleSelect(item) : undefined}
+              disableSelect={isMaxReached}
+              showCompareToggle={showCompareToggle}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+};
