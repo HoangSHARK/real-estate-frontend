@@ -51,7 +51,7 @@ export const useChat = () => {
 
   useEffect(() => () => stopActiveRequest(false), [stopActiveRequest]);
 
-  const sendMessage = useCallback(async (content: string, explicitIntent?: string) => {
+  const sendMessage = useCallback(async (content: string, explicitIntent?: string, displayText?: string) => {
     if (!content.trim() && !explicitIntent) return;
 
     stopActiveRequest(true);
@@ -60,7 +60,7 @@ export const useChat = () => {
     const userMessage: Message = {
       id: generateId(),
       role: 'user',
-      content: requestContent,
+      content: displayText || requestContent,
     };
     setMessages(previous => [...previous, userMessage]);
     setIsLoading(true);

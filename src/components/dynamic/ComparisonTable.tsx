@@ -1,80 +1,265 @@
 import React from 'react';
+import { DollarSign, LayoutGrid } from 'lucide-react';
 
 interface ComparisonTableProps {
   comparisonData: any;
+  category?: 'financial_legal' | 'space_interior' | 'all';
+  title?: string;
   sendMessage?: (content: string, explicitIntent?: string) => Promise<void>;
 }
 
-export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparisonData, sendMessage }) => {
-  if (!comparisonData || !comparisonData.listings || comparisonData.listings.length === 0) return null;
+// Dictionary mapping từ Supabase
+const SUPABASE_DICT: Record<string, string> = {
+  so_do: 'Sổ đỏ',
+  dat_coc: 'Hợp đồng đặt cọc',
+  hdmb: 'Hợp đồng mua bán',
+  thoa_thuan: 'Thoả thuận',
+  trong: 'Đang để trống',
+  cho_thue: 'Đang cho thuê',
+  dang_o: 'Đang ở',
+  cao_cap: 'Cao cấp',
+  co_ban: 'Cơ bản',
+  co_khong_ro: 'Có',
+  day_du: 'Đầy đủ',
+  khong: 'Không',
+  tho: 'Nhà thô',
+};
+
+const formatPrice = (value?: number) =>
+  value ? `${(value / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} tỷ đ` : '-';
+
+const formatDictValue = (key?: string) => {
+  if (!key || key === '0' || key === 'null' || key === 'undefined') return '-';
+  return SUPABASE_DICT[key] || key;
+};
+
+const formatBedrooms = (item: any) => {
+  const norm = item.bedrooms_norm ?? item.bedrooms;
+  const hasFlex = Boolean(item.bedrooms_plus || item.has_flex_room);
+
+  let base = '-';
+  if (norm === 0 || String(norm).toLowerCase() === 'studio') {
+    base = 'Studio';
+  } else if (norm != null && Number(norm) > 0) {
+    base = `${norm} PN`;
+  }
+
+  if (base === '-') return '-';
+  return hasFlex ? `${base} + 1` : base;
+};
+
+const formatFloor = (item: any) => {
+  if (item.floor_num && Number(item.floor_num) > 0) {
+    return `Tầng ${item.floor_num}`;
+  }
+  if (item.floor_band && item.floor_band.trim()) {
+    return item.floor_band.trim();
+  }
+  return '-';
+};
+
+const formatDirection = (item: any) => {
+  if (item.direction_balcony && item.direction_balcony.trim()) {
+    const dir = item.direction_balcony.trim().replace(/^Hướng\s+/i, '');
+    return `Hướng ${dir}`;
+  }
+  return '-';
+};
+
+interface RowDefinition {
+  key: string;
+  label: string;
+  getValue: (item: any) => string;
+  shouldShow?: boolean;
+}
+
+export const ComparisonTable: React.FC<ComparisonTableProps> = ({
+  comparisonData,
+  category = 'all',
+  title,
+}) => {
+  if (!comparisonData || !comparisonData.listings || comparisonData.listings.length === 0) {
+    return null;
+  }
 
   const listings = comparisonData.listings;
-  
+
+  // Kiểm tra dự án và tỉnh thành có khác nhau không để quyết định hiển thị
+  const distinctProjects = new Set(
+    listings.map((l: any) => l.project_name || l.project_id || l.project).filter(Boolean)
+  );
+  const isDifferentProject = distinctProjects.size > 1;
+
+  const distinctProvinces = new Set(
+    listings.map((l: any) => l.province).filter(Boolean)
+  );
+  const isDifferentProvince = distinctProvinces.size > 1;
+
+  // Định nghĩa các hàng cho Op1: Tài chính & Pháp lý
+  const financialRows: RowDefinition[] = [
+    {
+      key: 'project',
+      label: 'Dự án',
+      getValue: (item) => item.project_name || item.project || item.subtitle || '-',
+      shouldShow: isDifferentProject,
+    },
+    {
+      key: 'province',
+      label: 'Tỉnh/Thành',
+      getValue: (item) => item.province || '-',
+      shouldShow: isDifferentProvince,
+    },
+    {
+      key: 'price',
+      label: 'Giá',
+      getValue: (item) => formatPrice(item.price_vnd),
+    },
+    {
+      key: 'price_per_m2',
+      label: 'Đơn giá / m²',
+      getValue: (item) =>
+        item.price_per_m2_vnd
+          ? `${Math.round(item.price_per_m2_vnd / 1e6).toLocaleString('vi-VN')} triệu/m²`
+          : '-',
+    },
+    {
+      key: 'area',
+      label: 'Diện tích',
+      getValue: (item) =>
+        item.area_m2 && Number(item.area_m2) > 0
+          ? `${Number(item.area_m2).toLocaleString('vi-VN')} m²`
+          : '-',
+    },
+    {
+      key: 'legal_status',
+      label: 'Pháp lý',
+      getValue: (item) => formatDictValue(item.legal_status),
+    },
+    {
+      key: 'usage_status',
+      label: 'Hiện trạng',
+      getValue: (item) => formatDictValue(item.usage_status),
+    },
+  ];
+
+  // Định nghĩa các hàng cho Op2: Không gian & Nội thất
+  const spaceRows: RowDefinition[] = [
+    {
+      key: 'bedrooms',
+      label: 'Số phòng ngủ',
+      getValue: (item) => formatBedrooms(item),
+    },
+    {
+      key: 'bathrooms',
+      label: 'Số toilet',
+      getValue: (item) =>
+        item.bathrooms && Number(item.bathrooms) > 0 ? `${item.bathrooms} WC` : '-',
+    },
+    {
+      key: 'floor',
+      label: 'Tầng / Vị trí',
+      getValue: (item) => formatFloor(item),
+    },
+    {
+      key: 'direction_balcony',
+      label: 'Hướng ban công',
+      getValue: (item) => formatDirection(item),
+    },
+    {
+      key: 'view',
+      label: 'Tầm view',
+      getValue: (item) => (item.view && item.view.trim() ? item.view.trim() : '-'),
+    },
+    {
+      key: 'furnishing',
+      label: 'Nội thất',
+      getValue: (item) => formatDictValue(item.furnishing),
+    },
+  ];
+
+  // Chọn bộ hàng dựa trên category
+  let activeRows: RowDefinition[] = [];
+  if (category === 'financial_legal') {
+    activeRows = financialRows.filter((r) => r.shouldShow !== false);
+  } else if (category === 'space_interior') {
+    activeRows = spaceRows.filter((r) => r.shouldShow !== false);
+  } else {
+    // all
+    activeRows = [
+      ...financialRows.filter((r) => r.shouldShow !== false),
+      ...spaceRows.filter((r) => r.shouldShow !== false),
+    ];
+  }
+
+  const tableTitle =
+    title ||
+    (category === 'financial_legal'
+      ? 'Thông số Tài chính & Pháp lý'
+      : category === 'space_interior'
+      ? 'Thông số Không gian & Nội thất'
+      : 'Thông số so sánh các căn hộ');
+
+  const titleIcon =
+    category === 'financial_legal' ? (
+      <DollarSign size={18} />
+    ) : (
+      <LayoutGrid size={18} />
+    );
+
   return (
-    <div style={{ padding: '24px' }}>
-      <h3 className="font-bold text-lg mb-4 text-white">So sánh các căn hộ</h3>
-      <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
-        {listings.map((listing: any, idx: number) => (
-          <div key={idx} className="glass-card flex-shrink-0 w-64 rounded-2xl overflow-hidden snap-center">
-            <div className="relative h-32 w-full bg-slate-800">
-              <img 
-                src={listing.thumbnail || "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80"} 
-                alt="Thumbnail" 
-                className="w-full h-full object-cover"
-                onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" }}
-              />
-            </div>
-            <div className="p-4 flex flex-col gap-2 text-sm">
-              <div className="font-bold text-white mb-1 truncate" title={listing.title}>{listing.title}</div>
-              
-              <div className="flex justify-between border-b border-white/5 pb-1">
-                <span className="text-slate-400">Giá:</span>
-                <span className="font-bold text-primary">{listing.price_vnd ? `${(listing.price_vnd / 1e9).toFixed(1)} Tỷ` : 'Liên hệ'}</span>
-              </div>
-              
-              <div className="flex justify-between border-b border-white/5 pb-1">
-                <span className="text-slate-400">Diện tích:</span>
-                <span className="text-slate-200">{listing.area_m2} m²</span>
-              </div>
-              
-              <div className="flex justify-between border-b border-white/5 pb-1">
-                <span className="text-slate-400">Phòng ngủ:</span>
-                <span className="text-slate-200">{listing.bedrooms || '-'}</span>
-              </div>
-              
-              <div className="flex justify-between border-b border-white/5 pb-1">
-                <span className="text-slate-400">Tầng:</span>
-                <span className="text-slate-200">{listing.floor_num || listing.floor_band || '-'}</span>
-              </div>
-              
-              <div className="flex justify-between border-b border-white/5 pb-1">
-                <span className="text-slate-400">Hướng:</span>
-                <span className="text-slate-200">{listing.direction_balcony || '-'}</span>
-              </div>
-
-              <div className="flex justify-between border-b border-white/5 pb-1">
-                <span className="text-slate-400">Bàn giao:</span>
-                <span className="text-slate-200">{listing.furnishing || 'Cơ bản'}</span>
-              </div>
-
-              <button 
-                className="w-full py-2 mt-2 text-white rounded-lg text-xs font-bold transition-all hover:scale-[1.02] shadow-md shadow-primary/20" 
-                style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)' }}
-                onClick={() => sendMessage && sendMessage(`Tôi muốn đặt lịch xem căn này: ${listing.id}`, 'US2_1_VISIT')}
-              >
-                Đặt lịch xem
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      {comparisonData.amenities && (
-        <div className="mt-4">
-          <h4 className="font-bold text-sm mb-2 text-white">Tiện ích xung quanh</h4>
-          <p className="text-xs text-slate-400">Dữ liệu tiện ích đang được cập nhật thêm.</p>
+    <div className="inline-comparison-matrix">
+      <div className="matrix-heading">
+        <div className="matrix-title-icon">
+          {titleIcon}
         </div>
-      )}
+        <div>
+          <h3>{tableTitle}</h3>
+        </div>
+      </div>
+
+      <div className="matrix-table-scroll-container">
+        <table className="compare-matrix-table">
+          <thead>
+            <tr>
+              <th className="criteria-col-header">
+                <span>Thông số</span>
+              </th>
+              {listings.map((item: any, idx: number) => {
+                return (
+                  <th key={item.id || idx} className="property-col-header">
+                    <div className="matrix-card-head">
+                      <h4 title={item.title}>
+                        {item.title || `Căn hộ ${idx + 1}`}
+                      </h4>
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {activeRows.map((row) => (
+              <tr key={row.key}>
+                <td className="criteria-label">{row.label}</td>
+                {listings.map((item: any, idx: number) => {
+                  const val = row.getValue(item);
+                  const isPrice = row.key === 'price' || row.key === 'unit_price';
+                  return (
+                    <td
+                      key={`${row.key}-${item.id || idx}`}
+                      className={`spec-cell ${isPrice ? 'price-cell' : ''}`}
+                    >
+                      <span className={val === '-' ? 'spec-empty' : 'spec-value'}>
+                        {val}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
