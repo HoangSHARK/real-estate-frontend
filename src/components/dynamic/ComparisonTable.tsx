@@ -25,9 +25,6 @@ const SUPABASE_DICT: Record<string, string> = {
   tho: 'Nhà thô',
 };
 
-const formatPrice = (value?: number) =>
-  value ? `${(value / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} tỷ đ` : '-';
-
 const formatDictValue = (key?: string) => {
   if (!key || key === '0' || key === 'null' || key === 'undefined') return '-';
   return SUPABASE_DICT[key] || key;
@@ -69,7 +66,7 @@ const formatDirection = (item: any) => {
 interface RowDefinition {
   key: string;
   label: string;
-  getValue: (item: any) => string;
+  getValue: (item: any) => React.ReactNode;
   shouldShow?: boolean;
 }
 
@@ -112,7 +109,22 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
     {
       key: 'price',
       label: 'Giá',
-      getValue: (item) => formatPrice(item.price_vnd),
+      getValue: (item) => {
+        if (!item.price_vnd) return '-';
+        const priceStr = `${(item.price_vnd / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} tỷ`;
+        const typeLabel =
+          item.price_type === 'asking'
+            ? 'Chào bán'
+            : item.price_type === 'estimate'
+            ? 'Ước tính'
+            : null;
+        return (
+          <div className="price-cell-content">
+            <span className="price-main">{priceStr}</span>
+            {typeLabel && <span className="price-type-tag">({typeLabel})</span>}
+          </div>
+        );
+      },
     },
     {
       key: 'price_per_m2',
@@ -167,8 +179,14 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
     },
     {
       key: 'view',
-      label: 'Tầm view',
-      getValue: (item) => (item.view && item.view.trim() ? item.view.trim() : '-'),
+      label: 'View',
+      getValue: (item) => {
+        const v = (item.view || '').trim();
+        if (!v || v.toLowerCase() === 'k' || v.toLowerCase() === 'khong' || v.toLowerCase() === 'k_co' || v === '0' || v === 'null') {
+          return '-';
+        }
+        return v;
+      },
     },
     {
       key: 'furnishing',
@@ -225,8 +243,13 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
                 <span>Thông số</span>
               </th>
               {listings.map((item: any, idx: number) => {
+                const colWidth = `${(100 / listings.length).toFixed(2)}%`;
                 return (
-                  <th key={item.id || idx} className="property-col-header">
+                  <th
+                    key={item.id || idx}
+                    className="property-col-header"
+                    style={{ width: colWidth }}
+                  >
                     <div className="matrix-card-head">
                       <h4 title={item.title}>
                         {item.title || `Căn hộ ${idx + 1}`}

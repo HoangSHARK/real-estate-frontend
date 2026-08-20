@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Scale } from 'lucide-react';
+import { ArrowDown, Scale } from 'lucide-react';
 import type { Message, Suggestion } from '../../types/agent';
 import { InlineActions } from '../dynamic/InlineActions';
 import { ProjectOptionList } from '../dynamic/ProjectOptionCard';
 import { PropertyCard, PropertyCarousel, type PropertyCardData } from '../dynamic/PropertyCard';
-import { ComparisonModal } from '../dynamic/ComparisonModal';
 import { FeedbackRow } from '../dynamic/ResponseMeta';
 import { SuggestedPrompts } from '../dynamic/SuggestedPrompts';
 import { ChatBubbleUser } from './ChatBubbleUser';
@@ -15,67 +14,108 @@ import { ProgressStatus } from './ProgressStatus';
 interface ChatAreaProps {
   messages: Message[];
   isLoading: boolean;
-  sendMessage: (content: string, explicitIntent?: string, displayText?: string) => Promise<void>;
+  sendMessage: (content: string, explicitIntent?: string, displayText?: string, retryTargetMessageId?: string) => Promise<void>;
+  onStop?: () => void;
 }
 
-const formatJoinList = (items: string[]) => {
-  if (items.length <= 1) return items[0] || '';
-  if (items.length === 2) return `${items[0]} và ${items[1]}`;
-  return `${items.slice(0, -1).join(', ')} và ${items[items.length - 1]}`;
-};
-
-export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) => {
+export const ChatArea = ({ messages, isLoading, sendMessage, onStop }: ChatAreaProps) => {
+  const feedRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const carouselSectionRef = useRef<HTMLDivElement>(null);
+  const isUserScrollingUp = useRef(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const [selectedProperties, setSelectedProperties] = useState<PropertyCardData[]>([]);
   const [isCompareMode, setIsCompareMode] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeCompareMessageId, setActiveCompareMessageId] = useState<string | null>(null);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isLoading]);
+  const handleScroll = () => {
+    const feed = feedRef.current;
+    if (!feed) return;
+    const distanceFromBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight;
+    const isUp = distanceFromBottom > 70;
+    isUserScrollingUp.current = isUp;
+    setShowScrollButton(isUp);
+  };
 
-  // Cuộn mượt mà lên đúng đoạn danh sách căn hộ khi kích hoạt chế độ so sánh
-  useEffect(() => {
-    if (isCompareMode) {
-      const timer = setTimeout(() => {
-        carouselSectionRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-      }, 100);
-      return () => clearTimeout(timer);
+  const scrollToBottom = (smooth = true) => {
+    if (feedRef.current) {
+      feedRef.current.scrollTo({
+        top: feedRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+      isUserScrollingUp.current = false;
+      setShowScrollButton(false);
     }
-  }, [isCompareMode]);
+  };
+
+  useEffect(() => {
+    if (!isUserScrollingUp.current && feedRef.current) {
+      feedRef.current.scrollTo({
+        top: feedRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [messages, isLoading]);
+
+const stripLeadingEmoji = (text: string) => {
+  return text.replace(/^[\p{Extended_Pictographic}\p{Emoji}\u2000-\u3300\ufe0e\ufe0f\s]+/gu, '').trim() || text;
+};
 
   const selectProperty = (item: PropertyCardData) => {
     setIsCompareMode(false);
-    void sendMessage(`Giới thiệu chi tiết căn ${item.id || item.title}`, 'US3_DETAIL');
+    setActiveCompareMessageId(null);
+    isUserScrollingUp.current = false;
+    setShowScrollButton(false);
+    const title = item.title || 'Bất động sản';
+    const apiPayload = item.id ? `Giới thiệu chi tiết căn ${title} (${item.id})` : `Giới thiệu chi tiết ${title}`;
+    void sendMessage(apiPayload, 'US3_DETAIL', `Giới thiệu chi tiết ${title}`);
+    setTimeout(() => scrollToBottom(true), 50);
   };
   const propertyAction = (item: PropertyCardData, intent: string) => {
+    isUserScrollingUp.current = false;
+    setShowScrollButton(false);
     const label = intent === 'US2_1_VISIT' ? 'đặt lịch tham quan' : 'được tư vấn mua nhà';
-    return sendMessage(`Tôi muốn ${label} cho căn ${item.id || item.title}`, intent);
+    const title = item.title || 'Bất động sản';
+    const apiPayload = item.id ? `Tôi muốn ${label} cho căn ${title} (${item.id})` : `Tôi muốn ${label} cho ${title}`;
+    const res = sendMessage(apiPayload, intent, `Tôi muốn ${label} cho ${title}`);
+    setTimeout(() => scrollToBottom(true), 50);
+    return res;
   };
-  const selectSuggestion = (suggestion: Suggestion) => {
+  const selectSuggestion = (suggestion: Suggestion, msgId?: string) => {
     if (suggestion.value === '__COMPARE_MODE__' || suggestion.label === 'So sánh các căn') {
+      const targetId = msgId || lastSearchCardsMessageId;
       setIsCompareMode(true);
+      setActiveCompareMessageId(targetId || null);
+      setTimeout(() => {
+        if (targetId) {
+          const el = document.getElementById(`carousel-wrapper-${targetId}`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 50);
       return;
     }
     setIsCompareMode(false);
+    setActiveCompareMessageId(null);
+    isUserScrollingUp.current = false;
+    setShowScrollButton(false);
+
+    const rawVal = suggestion.value || suggestion.label;
+    const sendVal = stripLeadingEmoji(rawVal);
+    const displayVal = stripLeadingEmoji(suggestion.display_text || rawVal);
+
     void sendMessage(
-      suggestion.value || suggestion.label,
+      sendVal,
       suggestion.intent,
-      suggestion.display_text || suggestion.label
+      displayVal
     );
+    setTimeout(() => scrollToBottom(true), 50);
   };
 
   const handleToggleSelect = (item: PropertyCardData) => {
+    if (!item.id) return;
     setSelectedProperties((prev) => {
-      const isExist = prev.some(
-        (p) => (p.id && p.id === item.id) || (p.title && p.title === item.title)
-      );
+      const isExist = prev.some((p) => p.id === item.id);
       if (isExist) {
-        return prev.filter(
-          (p) => !((p.id && p.id === item.id) || (p.title && p.title === item.title))
-        );
+        return prev.filter((p) => p.id !== item.id);
       }
       if (prev.length >= 4) return prev;
       return [...prev, item];
@@ -83,44 +123,25 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
   };
 
   const handleRemoveFromCompare = (item: PropertyCardData) => {
-    setSelectedProperties((prev) =>
-      prev.filter(
-        (p) => !((p.id && p.id === item.id) || (p.title && p.title === item.title))
-      )
-    );
+    if (!item.id) return;
+    setSelectedProperties((prev) => prev.filter((p) => p.id !== item.id));
   };
 
   const handleClearCompare = () => {
     setSelectedProperties([]);
     setIsCompareMode(false);
-  };
-
-  const handleTriggerCompare = () => {
-    if (selectedProperties.length < 2) return;
-    setIsModalOpen(true);
-    const rawTitles = selectedProperties.map((p) => p.title || p.id || 'Căn hộ');
-    const displayTitles = formatJoinList(rawTitles);
-
-    const rawIdsWithContext = selectedProperties
-      .map((p) => (p.id ? `${p.title || 'Căn hộ'} (${p.id})` : p.title))
-      .filter(Boolean) as string[];
-    const propertyIdsWithContext = formatJoinList(rawIdsWithContext);
-
-    setIsCompareMode(false);
-    void sendMessage(
-      `So sánh các căn: ${propertyIdsWithContext}`,
-      'US6_COMPARE',
-      `So sánh chi tiết các căn sau: ${displayTitles}`
-    );
+    setActiveCompareMessageId(null);
   };
 
   const latestBot = [...messages].reverse().find(message => message.role === 'bot');
   const hasVisibleLatestProgress = Boolean(latestBot?.progress?.steps.length);
-  const lastMessageWithCardsId = [...messages].reverse().find(m => m.actions?.some(a => a.type === 'cards'))?.id;
+  const lastSearchCardsMessageId = [...messages].reverse().find(
+    m => m.actions?.some(a => a.type === 'cards' && !a.is_comparison)
+  )?.id;
 
   return (
     <div className="chat-layout">
-      <div className="message-feed">
+      <div className="message-feed" ref={feedRef} onScroll={handleScroll}>
         {messages.map(message => {
           if (message.role === 'user') return <ChatBubbleUser key={message.id} content={message.content} />;
 
@@ -153,14 +174,18 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
           const hasProgress = Boolean(message.progress?.steps.length);
           const hasResponseMeta = message.content.length > 0 || (message.actions?.length ?? 0) > 0;
           const retry = message.retry;
-          const isLatestCardsMessage = message.id === lastMessageWithCardsId;
+          const isTargetCompareMessage =
+            !isComparisonResult &&
+            (activeCompareMessageId
+              ? message.id === activeCompareMessageId
+              : message.id === lastSearchCardsMessageId);
 
           return (
             <section className="agent-response" key={message.id}>
               {hasProgress && message.progress && (
                 <ProgressStatus
                   progress={message.progress}
-                  onRetry={retry ? () => { void sendMessage(retry.content, retry.intent); } : undefined}
+                  onRetry={retry ? () => { void sendMessage(retry.content, retry.intent, retry.displayText, message.id); } : undefined}
                 />
               )}
 
@@ -174,10 +199,10 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
               {/* 2. Danh sách thẻ căn hộ (Ẩn nút so sánh nếu đang ở kết quả so sánh) */}
               {cards?.items?.length > 0 && (
                 <div
-                  ref={isLatestCardsMessage ? carouselSectionRef : undefined}
+                  id={`carousel-wrapper-${message.id}`}
                   className="carousel-compare-wrapper"
                 >
-                  {isCompareMode && isLatestCardsMessage && !isComparisonResult && (
+                  {isCompareMode && isTargetCompareMessage && (
                     <div className="compare-mode-guide-banner">
                       <div className="guide-text">
                         <Scale size={16} className="guide-icon" />
@@ -190,6 +215,7 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
                         className="guide-dismiss-btn"
                         onClick={() => {
                           setIsCompareMode(false);
+                          setActiveCompareMessageId(null);
                           setSelectedProperties([]);
                         }}
                       >
@@ -205,7 +231,7 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
                     onAction={propertyAction}
                     selectedItems={selectedProperties}
                     onToggleSelect={handleToggleSelect}
-                    showCompareToggle={!isComparisonResult && isLatestCardsMessage && (isCompareMode || selectedProperties.length > 0)}
+                    showCompareToggle={isTargetCompareMessage && (isCompareMode || selectedProperties.length > 0)}
                   />
                 </div>
               )}
@@ -221,10 +247,10 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
                   showCompareToggle={false}
                 />
               )}
-              {projectOptions.length > 0 && <ProjectOptionList options={projectOptions} onSelect={selectSuggestion} />}
+              {projectOptions.length > 0 && <ProjectOptionList options={projectOptions} onSelect={(s) => selectSuggestion(s, message.id)} />}
               {advanced.length > 0 && <InlineActions actions={advanced} sendMessage={sendMessage} />}
               {hasResponseMeta && <FeedbackRow text={message.content} sourceCount={sources?.items?.length || 0} />}
-              {promptOptions.length > 0 && <SuggestedPrompts prompts={promptOptions} onSelect={selectSuggestion} />}
+              {promptOptions.length > 0 && <SuggestedPrompts prompts={promptOptions} onSelect={(s) => selectSuggestion(s, message.id)} />}
             </section>
           );
         })}
@@ -232,24 +258,30 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
         <div ref={endRef} />
       </div>
 
+      {showScrollButton && (
+        <button
+          type="button"
+          className="scroll-to-bottom-btn"
+          onClick={() => scrollToBottom(true)}
+          aria-label="Cuộn xuống tin nhắn mới nhất"
+          title="Cuộn xuống dưới"
+        >
+          <ArrowDown size={14} />
+        </button>
+      )}
+
       <ChatInputBar
         isLoading={isLoading}
-        onSend={(value, intent, displayText) => { void sendMessage(value, intent, displayText); }}
+        onStop={onStop}
+        onSend={(value, intent, displayText) => {
+          isUserScrollingUp.current = false;
+          setShowScrollButton(false);
+          void sendMessage(value, intent, displayText);
+          setTimeout(() => scrollToBottom(true), 50);
+        }}
         selectedProperties={selectedProperties}
         onRemoveProperty={handleRemoveFromCompare}
         onClearProperties={handleClearCompare}
-        onOpenComparisonModal={handleTriggerCompare}
-      />
-
-      {/* Comparison Modal Matrix View */}
-      <ComparisonModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        items={selectedProperties}
-        onAction={(item, intent) => {
-          setIsModalOpen(false);
-          void propertyAction(item, intent);
-        }}
       />
     </div>
   );

@@ -3,7 +3,7 @@ import { ChatArea } from './components/chat/ChatArea';
 import { useChat } from './hooks/useChat';
 
 function App() {
-  const { messages, isLoading, sendMessage } = useChat();
+  const { messages, isLoading, sendMessage, stopActiveRequest } = useChat();
 
   return (
     <main className="app-shell">
@@ -15,7 +15,12 @@ function App() {
             <p><span /> Đang hoạt động</p>
           </div>
         </header>
-        <ChatArea messages={messages} isLoading={isLoading} sendMessage={sendMessage} />
+        <ChatArea
+          messages={messages}
+          isLoading={isLoading}
+          sendMessage={sendMessage}
+          onStop={stopActiveRequest}
+        />
       </section>
     </main>
   );

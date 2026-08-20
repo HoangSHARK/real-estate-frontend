@@ -152,8 +152,8 @@ export const PropertyCarousel = ({
   return (
     <div className="property-carousel" aria-label="Danh sách bất động sản">
       {items.map((item, index) => {
-        const isSelected = selectedItems.some(
-          (s) => (s.id && s.id === item.id) || (s.title && s.title === item.title)
+        const isSelected = Boolean(
+          item.id && selectedItems.some((s) => s.id === item.id)
         );
 
         return (
