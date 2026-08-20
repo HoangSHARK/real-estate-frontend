@@ -73,7 +73,10 @@ const stripLeadingEmoji = (text: string) => {
   const propertyAction = (item: PropertyCardData, intent: string) => {
     isUserScrollingUp.current = false;
     setShowScrollButton(false);
-    const label = intent === 'US2_1_VISIT' ? 'đặt lịch tham quan' : 'được tư vấn mua nhà';
+    let label = '';
+    if (intent === 'US2_1_VISIT') label = 'đặt lịch tham quan';
+    else if (intent === 'US2_2_CONSULT') label = 'được tư vấn mua nhà';
+    else if (intent === 'US5_MAP') label = 'xem bản đồ cùng với các tiện ích xung quanh';
     const title = item.title || 'Bất động sản';
     const apiPayload = item.id ? `Tôi muốn ${label} cho căn ${title} (${item.id})` : `Tôi muốn ${label} cho ${title}`;
     const res = sendMessage(apiPayload, intent, `Tôi muốn ${label} cho ${title}`);
@@ -244,6 +247,7 @@ const stripLeadingEmoji = (text: string) => {
                   property={detail.listing}
                   onVisit={() => propertyAction(detail.listing, 'US2_1_VISIT')}
                   onConsult={() => propertyAction(detail.listing, 'US2_2_CONSULT')}
+                  onMap={() => propertyAction(detail.listing, 'US5_MAP')}
                   showCompareToggle={false}
                 />
               )}
