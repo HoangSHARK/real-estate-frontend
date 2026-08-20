@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CalendarDays, ChevronRight, Headphones, Scale } from 'lucide-react';
+import { CalendarDays, ChevronRight, Headphones, MapPin, Scale } from 'lucide-react';
 
 export interface PropertyCardData {
   id?: string; title?: string; property_type?: string; image_url?: string; thumbnail?: string;
@@ -10,7 +10,7 @@ export interface PropertyCardData {
 
 interface PropertyCardProps {
   property: PropertyCardData; showViewAll?: boolean; onViewAll?: () => void;
-  onVisit: () => void; onConsult: () => void;
+  onVisit: () => void; onConsult: () => void; onMap?: () => void;
   onSelect?: () => void;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -35,6 +35,7 @@ export const PropertyCard = ({
   onViewAll,
   onVisit,
   onConsult,
+  onMap,
   onSelect,
   isSelected,
   onToggleSelect,
@@ -117,10 +118,16 @@ export const PropertyCard = ({
             </span>
           ))}
         </div>
-        <p className="property-address">{property.address || property.subtitle || property.project_name || property.province || 'Thông tin vị trí đang được cập nhật'}</p>
+        <p className="property-address">
+          {property.address ||
+            (property.project_name && property.province
+              ? `${property.project_name}, ${property.province}`
+              : property.project_name || property.province || property.subtitle || 'Thông tin vị trí đang được cập nhật')}
+        </p>
         {showViewAll && <button type="button" className="view-all-button" onClick={onViewAll}>Xem tất cả</button>}
       </div>
       <div className="property-actions">
+        {onMap && <ActionRow icon={<MapPin size={18} />} title="Xem vị trí" subtitle="Bản đồ quanh dự án" onClick={onMap} />}
         <ActionRow icon={<CalendarDays size={18} />} title="Đặt lịch tham quan" subtitle="Dự án, nhà mẫu / thực tế" onClick={onVisit} />
         <ActionRow icon={<Headphones size={18} />} title="Tư vấn mua nhà 1:1" subtitle="Phân tích chính sách chuyên sâu" onClick={onConsult} />
       </div>
@@ -165,6 +172,7 @@ export const PropertyCarousel = ({
               onSelect={() => onSelect(item)}
               onVisit={() => onAction(item, 'US2_1_VISIT')}
               onConsult={() => onAction(item, 'US2_2_CONSULT')}
+              onMap={() => onAction(item, 'US5_MAP')}
               isSelected={isSelected}
               onToggleSelect={onToggleSelect ? () => onToggleSelect(item) : undefined}
               disableSelect={isMaxReached}

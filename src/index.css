@@ -1153,3 +1153,8 @@ button { color: inherit; }
   margin-top: 10px;
 }
 
+/* Hide Leaflet attribution logo/control */
+.leaflet-control-attribution {
+  display: none !important;
+}
+
