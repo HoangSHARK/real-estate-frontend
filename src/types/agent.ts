@@ -61,6 +61,7 @@ export interface ActionCompare {
   type: 'compare';
   category?: 'financial_legal' | 'space_interior' | 'all';
   title?: string;
+  summary?: string;
   comparison: any;
 }
 
@@ -102,6 +103,7 @@ export interface Message {
   retry?: {
     content: string;
     intent?: string;
+    displayText?: string;
   };
 }
 

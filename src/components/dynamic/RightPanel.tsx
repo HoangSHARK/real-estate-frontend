@@ -6,7 +6,7 @@ import { ComparisonTable } from './ComparisonTable';
 
 interface RightPanelProps {
   actions: UIAction[];
-  sendMessage?: (content: string, explicitIntent?: string) => Promise<void>;
+  sendMessage?: (content: string, explicitIntent?: string, displayText?: string) => Promise<void>;
 }
 
 export const RightPanel = ({ actions, sendMessage }: RightPanelProps) => {
@@ -66,7 +66,12 @@ export const RightPanel = ({ actions, sendMessage }: RightPanelProps) => {
                <div 
                  key={idx} 
                  className="glass-card flex gap-4 p-3 rounded-2xl cursor-pointer transition-transform hover:scale-[1.02]"
-                 onClick={() => sendMessage && sendMessage(`Bạn có thể giới thiệu chi tiết cho tôi về căn có mã ${item.id} được không?`, 'US3_DETAIL')}
+                 onClick={() => {
+                   if (!sendMessage) return;
+                   const title = item.title || 'Bất động sản';
+                   const apiPayload = item.id ? `Bạn có thể giới thiệu chi tiết cho tôi về căn ${title} (${item.id}) được không?` : `Bạn có thể giới thiệu chi tiết cho tôi về ${title} được không?`;
+                   void sendMessage(apiPayload, 'US3_DETAIL', `Giới thiệu chi tiết ${title}`);
+                 }}
                >
                  <div className="shrink-0 w-24 h-24 rounded-xl overflow-hidden bg-slate-800">
                    <img 

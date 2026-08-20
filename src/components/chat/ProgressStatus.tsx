@@ -45,7 +45,7 @@ export const ProgressStatus = ({ progress, onRetry }: ProgressStatusProps) => {
     : progress.summaryStatus === 'error'
       ? 'Chưa thể hoàn tất việc tra cứu'
       : progress.summaryStatus === 'cancelled'
-        ? 'Đã dừng yêu cầu trước'
+        ? 'Đã dừng xử lý'
         : progress.summaryStatus === 'warning'
           ? 'Chưa tìm thấy đầy đủ thông tin'
           : 'Đang xử lý yêu cầu...';
@@ -63,7 +63,7 @@ export const ProgressStatus = ({ progress, onRetry }: ProgressStatusProps) => {
           </span>
           <span>{summary}</span>
           <div className="progress-summary-actions">
-            {progress.summaryStatus === 'error' && onRetry && (
+            {(progress.summaryStatus === 'error' || progress.summaryStatus === 'cancelled') && onRetry && (
               <button className="progress-retry" type="button" onClick={onRetry}>
                 <RefreshCw aria-hidden="true" size={14} />
                 Thử lại

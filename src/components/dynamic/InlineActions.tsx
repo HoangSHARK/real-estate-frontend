@@ -10,10 +10,11 @@ import type {
 import { ComparisonTable } from './ComparisonTable';
 import { MapView } from './MapView';
 import { ProjectOverview } from './ProjectOverview';
+import { ChatTextAgent } from '../chat/ChatTextAgent';
 
 interface InlineActionsProps {
   actions: UIAction[];
-  sendMessage: (content: string, explicitIntent?: string) => Promise<void>;
+  sendMessage: (content: string, explicitIntent?: string, displayText?: string) => Promise<void>;
 }
 
 const fallbackImage =
@@ -111,6 +112,11 @@ export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
             title={compareAction.title}
             sendMessage={sendMessage}
           />
+          {compareAction.summary && (
+            <div className="compare-chat-summary-text">
+              <ChatTextAgent content={`💡 Tổng quan: ${compareAction.summary}`} />
+            </div>
+          )}
         </div>
       )}
       {overviewAction && <ProjectOverview overview={overviewAction.overview} />}
