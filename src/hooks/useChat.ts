@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatAPI } from '../services/api';
-import type { Message } from '../types/agent';
+import type { FeedbackRequest, FeedbackValue, Message } from '../types/agent';
 import {
   cancelAgentProgress,
   completeAgentProgress,
@@ -9,13 +9,18 @@ import {
   reduceProgressEvent,
   updateProgressClock,
 } from '../utils/agentProgress';
+import {
+  createMessageId,
+  createThreadId,
+  getOrCreateAnonymousUserId,
+} from '../utils/identity';
 
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
+type FeedbackTarget = Omit<FeedbackRequest, 'value' | 'comment'>;
 
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: generateId(),
+      id: createMessageId(),
       role: 'bot',
       content: 'Xin chào! Tôi là Trợ Lý Bất Động Sản AI. Tôi có thể tìm kiếm thông tin, dự án, hoặc tư vấn về nhà đất. Bạn đang quan tâm đến điều gì?',
       actions: [
@@ -29,7 +34,10 @@ export const useChat = () => {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const threadId = useRef<string>(`session_${generateId()}`);
+  const threadId = useRef<string>(createThreadId());
+  const anonymousUserId = useRef<string>(getOrCreateAnonymousUserId());
+  const feedbackTargets = useRef(new Map<string, FeedbackTarget>());
+
   const activeRequest = useRef<{
     id: string;
     botMessageId: string;
@@ -71,7 +79,8 @@ export const useChat = () => {
 
     const requestContent = content || explicitIntent || '';
     const isRetry = Boolean(retryTargetMessageId);
-    const botMessageId = retryTargetMessageId || generateId();
+    const botMessageId = retryTargetMessageId || createMessageId();
+    const requestMessageId = createMessageId();
 
     if (isRetry) {
       // In-place retry: Reset the existing failed bot message without adding a duplicate user bubble
@@ -82,12 +91,13 @@ export const useChat = () => {
             actions: [],
             progress: createAgentProgress(),
             retry: undefined,
+            feedback: undefined,
           }
         : m
       ));
     } else {
       const userMessage: Message = {
-        id: generateId(),
+        id: requestMessageId,
         role: 'user',
         content: displayText || requestContent,
       };
@@ -105,7 +115,7 @@ export const useChat = () => {
     }
     setIsLoading(true);
 
-    const requestId = generateId();
+    const requestId = createMessageId();
     const controller = new AbortController();
     const progressTimer = setInterval(() => {
       if (activeRequest.current?.id !== requestId) return;
@@ -133,9 +143,13 @@ export const useChat = () => {
 
     try {
       await chatAPI.sendMessageStream(
-        requestContent,
-        threadId.current,
-        explicitIntent,
+        {
+          message: requestContent,
+          thread_id: threadId.current,
+          request_message_id: requestMessageId,
+          user_id: anonymousUserId.current,
+          intent: explicitIntent,
+        },
         {
           onText: (textDelta) => {
             if (!isCurrentRequest()) return;
@@ -159,10 +173,26 @@ export const useChat = () => {
               ? { ...message, progress: reduceProgressEvent(message.progress, event) }
               : message));
           },
-          onDone: () => {
+          onDone: (metadata) => {
             if (!finishRequest()) return;
-            setMessages(previous => previous.map(message => message.id === botMessageId && message.progress
-              ? { ...message, progress: completeAgentProgress(message.progress) }
+
+            const { message_id, trace_id, feedback_token } = metadata || {};
+            if (message_id && trace_id && feedback_token) {
+              feedbackTargets.current.set(botMessageId, {
+                message_id,
+                trace_id,
+                feedback_token,
+              });
+            }
+
+            setMessages(previous => previous.map(message => message.id === botMessageId
+              ? {
+                  ...message,
+                  message_id,
+                  trace_id,
+                  feedback_token,
+                  progress: message.progress ? completeAgentProgress(message.progress) : undefined,
+                }
               : message));
             setIsLoading(false);
           },
@@ -193,10 +223,52 @@ export const useChat = () => {
     }
   }, [stopActiveRequest]);
 
+  const submitFeedback = useCallback(async (
+    localMessageId: string,
+    value: FeedbackValue,
+    comment?: string,
+  ) => {
+    const target = feedbackTargets.current.get(localMessageId);
+    if (!target) return;
+
+    setMessages(previous => previous.map(message =>
+      message.id === localMessageId
+        ? {
+            ...message,
+            feedback: {
+              value: message.feedback?.value,
+              pendingValue: value,
+              status: 'submitting',
+            },
+          }
+        : message));
+
+    try {
+      await chatAPI.sendFeedback({ ...target, value, comment });
+      setMessages(previous => previous.map(message =>
+        message.id === localMessageId
+          ? { ...message, feedback: { value, status: 'submitted' } }
+          : message));
+    } catch {
+      setMessages(previous => previous.map(message =>
+        message.id === localMessageId
+          ? {
+              ...message,
+              feedback: {
+                value: message.feedback?.value,
+                status: 'error',
+                error: 'Không gửi được đánh giá. Vui lòng thử lại.',
+              },
+            }
+          : message));
+    }
+  }, []);
+
   return {
     messages,
     isLoading,
     sendMessage,
     stopActiveRequest: () => stopActiveRequest(true),
+    submitFeedback,
   };
 };
