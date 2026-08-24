@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { Message, Suggestion } from '../../types/agent';
+import type { FeedbackValue, Message, Suggestion } from '../../types/agent';
 import { InlineActions } from '../dynamic/InlineActions';
 import { ProjectOptionList } from '../dynamic/ProjectOptionCard';
 import { PropertyCard, PropertyCarousel, type PropertyCardData } from '../dynamic/PropertyCard';
@@ -14,9 +14,10 @@ interface ChatAreaProps {
   messages: Message[];
   isLoading: boolean;
   sendMessage: (content: string, explicitIntent?: string) => Promise<void>;
+  submitFeedback: (messageId: string, value: FeedbackValue) => Promise<void>;
 }
 
-export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) => {
+export const ChatArea = ({ messages, isLoading, sendMessage, submitFeedback }: ChatAreaProps) => {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isLoading]);
 
@@ -43,9 +44,15 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
           const advanced = message.actions?.filter(action => ['form', 'map', 'compare', 'overview'].includes(action.type)) || [];
           const projectOptions = clarify?.suggestions?.filter((item: Suggestion) => item.project_id) || [];
           const promptOptions = projectOptions.length ? [] : (clarify?.suggestions || cta?.items || []);
+<<<<<<< Updated upstream
           const hasProgress = Boolean(message.progress?.steps.length);
           const hasResponseMeta = message.content.length > 0 || (message.actions?.length ?? 0) > 0;
           const retry = message.retry;
+=======
+          const canSendFeedback = Boolean(
+            message.message_id && message.trace_id && message.feedback_token,
+          );
+>>>>>>> Stashed changes
 
           return (
             <section className="agent-response" key={message.id}>
@@ -60,7 +67,20 @@ export const ChatArea = ({ messages, isLoading, sendMessage }: ChatAreaProps) =>
               {detail?.listing && <PropertyCard property={detail.listing} onVisit={() => propertyAction(detail.listing, 'US2_1_VISIT')} onConsult={() => propertyAction(detail.listing, 'US2_2_CONSULT')} />}
               {projectOptions.length > 0 && <ProjectOptionList options={projectOptions} onSelect={selectSuggestion} />}
               {advanced.length > 0 && <InlineActions actions={advanced} sendMessage={sendMessage} />}
+<<<<<<< Updated upstream
               {hasResponseMeta && <FeedbackRow text={message.content} sourceCount={sources?.items?.length || 0} />}
+=======
+              {(message.content || sources?.items?.length > 0 || canSendFeedback) && (
+                <FeedbackRow
+                  text={message.content}
+                  sourceCount={sources?.items?.length || 0}
+                  feedback={message.feedback}
+                  onFeedback={canSendFeedback
+                    ? value => submitFeedback(message.id, value)
+                    : undefined}
+                />
+              )}
+>>>>>>> Stashed changes
               {promptOptions.length > 0 && <SuggestedPrompts prompts={promptOptions} onSelect={selectSuggestion} />}
             </section>
           );

@@ -1,6 +1,8 @@
 export interface ChatRequest {
   message: string;
   thread_id: string;
+  request_message_id: string;
+  user_id: string;
   intent?: string;
 }
 
@@ -11,6 +13,33 @@ export interface ChatResponse {
   tool_calls?: any[];
   intent?: string;
   slots?: Record<string, any>;
+  message_id?: string;
+  trace_id?: string;
+  feedback_token?: string;
+}
+
+export interface StreamDoneMetadata {
+  message_id?: string;
+  trace_id?: string;
+  feedback_token?: string;
+  response?: ChatResponse;
+}
+
+export type FeedbackValue = 0 | 1;
+
+export interface FeedbackRequest {
+  trace_id: string;
+  message_id: string;
+  feedback_token: string;
+  value: FeedbackValue;
+  comment?: string;
+}
+
+export interface MessageFeedbackState {
+  value?: FeedbackValue;
+  pendingValue?: FeedbackValue;
+  status: 'submitting' | 'submitted' | 'error';
+  error?: string;
 }
 
 export type UIAction = 
@@ -82,6 +111,7 @@ export interface Message {
   role: 'user' | 'bot';
   content: string;
   actions?: UIAction[];
+<<<<<<< Updated upstream
   progress?: AgentProgressState;
   retry?: {
     content: string;
@@ -114,4 +144,10 @@ export interface AgentProgressState {
   totalElapsedMs?: number;
   summaryStatus: 'running' | 'completed' | 'warning' | 'error' | 'cancelled';
   collapsed: boolean;
+=======
+  message_id?: string;
+  trace_id?: string;
+  feedback_token?: string;
+  feedback?: MessageFeedbackState;
+>>>>>>> Stashed changes
 }
