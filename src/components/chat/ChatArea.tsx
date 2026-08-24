@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, Scale } from 'lucide-react';
-import type { Message, Suggestion } from '../../types/agent';
+import type { FeedbackValue, Message, Suggestion } from '../../types/agent';
 import { InlineActions } from '../dynamic/InlineActions';
 import { ProjectOptionList } from '../dynamic/ProjectOptionCard';
 import { PropertyCard, PropertyCarousel, type PropertyCardData } from '../dynamic/PropertyCard';
@@ -16,9 +16,10 @@ interface ChatAreaProps {
   isLoading: boolean;
   sendMessage: (content: string, explicitIntent?: string, displayText?: string, retryTargetMessageId?: string) => Promise<void>;
   onStop?: () => void;
+  submitFeedback?: (messageId: string, value: FeedbackValue) => Promise<void>;
 }
 
-export const ChatArea = ({ messages, isLoading, sendMessage, onStop }: ChatAreaProps) => {
+export const ChatArea = ({ messages, isLoading, sendMessage, onStop, submitFeedback }: ChatAreaProps) => {
   const feedRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const isUserScrollingUp = useRef(false);
@@ -175,7 +176,10 @@ const stripLeadingEmoji = (text: string) => {
           }
 
           const hasProgress = Boolean(message.progress?.steps.length);
-          const hasResponseMeta = message.content.length > 0 || (message.actions?.length ?? 0) > 0;
+          const canSendFeedback = Boolean(
+            message.message_id && message.trace_id && message.feedback_token,
+          );
+          const hasResponseMeta = message.content.length > 0 || (message.actions?.length ?? 0) > 0 || canSendFeedback;
           const retry = message.retry;
           const isTargetCompareMessage =
             !isComparisonResult &&
@@ -253,7 +257,16 @@ const stripLeadingEmoji = (text: string) => {
               )}
               {projectOptions.length > 0 && <ProjectOptionList options={projectOptions} onSelect={(s) => selectSuggestion(s, message.id)} />}
               {advanced.length > 0 && <InlineActions actions={advanced} sendMessage={sendMessage} />}
-              {hasResponseMeta && <FeedbackRow text={message.content} sourceCount={sources?.items?.length || 0} />}
+              {hasResponseMeta && (
+                <FeedbackRow
+                  text={message.content}
+                  sourceCount={sources?.items?.length || 0}
+                  feedback={message.feedback}
+                  onFeedback={submitFeedback && canSendFeedback
+                    ? (value) => submitFeedback(message.id, value)
+                    : undefined}
+                />
+              )}
               {promptOptions.length > 0 && <SuggestedPrompts prompts={promptOptions} onSelect={(s) => selectSuggestion(s, message.id)} />}
             </section>
           );
