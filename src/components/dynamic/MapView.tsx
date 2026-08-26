@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { MapPin, School, Hospital, ShoppingBag, Trees } from 'lucide-react';
 
 // Fix for default marker icon in react-leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -38,6 +39,7 @@ const getAmenityEmoji = (type: string) => {
     case 'clinic':
       return '🏥';
     case 'marketplace':
+    case 'shopping':
       return '🛒';
     case 'park':
       return '🌳';
@@ -48,18 +50,18 @@ const getAmenityEmoji = (type: string) => {
 
 const getPropertyIcon = () => {
   return L.divIcon({
-    html: `<div style="font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); line-height: 1; display: flex; justify-content: center; align-items: center; width: 36px; height: 36px; background: white; border-radius: 50%; border: 2px solid #3b82f6; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🏠</div>`,
+    html: `<div style="font-size: 18px; line-height: 1; display: flex; justify-content: center; align-items: center; width: 34px; height: 34px; background: #ea580c; color: white; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.45);">🏠</div>`,
     className: 'custom-property-icon',
-    iconSize: [36, 36],
-    iconAnchor: [18, 36],
-    popupAnchor: [0, -36]
+    iconSize: [34, 34],
+    iconAnchor: [17, 34],
+    popupAnchor: [0, -34]
   });
 };
 
 const getAmenityIcon = (type: string) => {
   const emoji = getAmenityEmoji(type);
   return L.divIcon({
-    html: `<div style="font-size: 16px; line-height: 1; display: flex; justify-content: center; align-items: center; width: 28px; height: 28px; background-color: white; border-radius: 50%; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">${emoji}</div>`,
+    html: `<div style="font-size: 14px; line-height: 1; display: flex; justify-content: center; align-items: center; width: 28px; height: 28px; background-color: white; border-radius: 50%; border: 1.5px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">${emoji}</div>`,
     className: 'custom-amenity-icon',
     iconSize: [28, 28],
     iconAnchor: [14, 14],
@@ -68,40 +70,79 @@ const getAmenityIcon = (type: string) => {
 };
 
 export const MapView: React.FC<MapViewProps> = ({ mapData }) => {
+  const [selectedAmenityType, setSelectedAmenityType] = useState<string>('all');
   const points = mapData?.points || mapData?.listings || [];
   
   let centerLat = mapData?.center_lat;
   let centerLng = mapData?.center_lng;
 
-  // If no center provided, compute from points
   if ((!centerLat || !centerLng) && points.length > 0) {
     centerLat = points.reduce((sum: number, p: any) => sum + (p.lat || p.latitude || 0), 0) / points.length;
     centerLng = points.reduce((sum: number, p: any) => sum + (p.lng || p.longitude || 0), 0) / points.length;
   }
 
-  // Fallback to a default center (e.g., HCMC center)
   if (!centerLat || !centerLng) {
     centerLat = 10.762622;
     centerLng = 106.660172;
   }
 
+  const allAmenities = mapData?.amenities || [];
+  const filteredAmenities = selectedAmenityType === 'all'
+    ? allAmenities
+    : allAmenities.filter((a: any) => a.type === selectedAmenityType);
+
   return (
-    <div style={{ padding: '24px', borderBottom: '1px solid var(--border-light)' }}>
-      <h3 className="font-bold text-xs mb-4 uppercase tracking-wider text-slate-400">
-        Vị trí: {centerLat.toFixed(4)}, {centerLng.toFixed(4)}
-      </h3>
-      <div 
-        className="relative"
-        style={{ 
-          height: '220px', 
-          borderRadius: '24px', 
-          overflow: 'hidden', 
-          boxShadow: 'var(--shadow-md)',
-          zIndex: 1
-        }}
-      >
-        <MapContainer center={[centerLat, centerLng]} zoom={13} attributionControl={false} style={{ height: '100%', width: '100%' }}>
-          <ChangeView center={[centerLat, centerLng]} zoom={13} />
+    <div className="map-view-wrapper animate-fade-in">
+      <div className="map-view-header">
+        <div className="map-view-title">
+          <MapPin size={18} style={{ color: 'var(--color-accent)' }} />
+          <span>Bản đồ vị trí & Tiện ích lân cận</span>
+        </div>
+      </div>
+
+      {allAmenities.length > 0 && (
+        <div className="map-amenity-filters">
+          <button
+            type="button"
+            className={`map-amenity-filter-btn ${selectedAmenityType === 'all' ? 'active' : ''}`}
+            onClick={() => setSelectedAmenityType('all')}
+          >
+            Tất cả ({allAmenities.length})
+          </button>
+          <button
+            type="button"
+            className={`map-amenity-filter-btn ${selectedAmenityType === 'school' ? 'active' : ''}`}
+            onClick={() => setSelectedAmenityType('school')}
+          >
+            <School size={13} /> Trường học
+          </button>
+          <button
+            type="button"
+            className={`map-amenity-filter-btn ${selectedAmenityType === 'hospital' ? 'active' : ''}`}
+            onClick={() => setSelectedAmenityType('hospital')}
+          >
+            <Hospital size={13} /> Bệnh viện
+          </button>
+          <button
+            type="button"
+            className={`map-amenity-filter-btn ${selectedAmenityType === 'marketplace' ? 'active' : ''}`}
+            onClick={() => setSelectedAmenityType('marketplace')}
+          >
+            <ShoppingBag size={13} /> TTTM / Chợ
+          </button>
+          <button
+            type="button"
+            className={`map-amenity-filter-btn ${selectedAmenityType === 'park' ? 'active' : ''}`}
+            onClick={() => setSelectedAmenityType('park')}
+          >
+            <Trees size={13} /> Công viên
+          </button>
+        </div>
+      )}
+
+      <div className="map-container-box">
+        <MapContainer center={[centerLat, centerLng]} zoom={14} attributionControl={false} style={{ height: '100%', width: '100%' }}>
+          <ChangeView center={[centerLat, centerLng]} zoom={14} />
           <TileLayer
             attribution=""
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -114,14 +155,20 @@ export const MapView: React.FC<MapViewProps> = ({ mapData }) => {
               <Marker key={`point-${idx}`} position={[lat, lng]} icon={getPropertyIcon()}>
                 {(p.title || p.name) && (
                   <Popup>
-                    <strong>{p.title || p.name}</strong>
-                    {p.price_vnd ? <div className="text-sm mt-1 text-slate-600">{(p.price_vnd / 1e9).toFixed(2)} Tỷ đ</div> : null}
+                    <div style={{ padding: '4px' }}>
+                      <strong style={{ fontSize: '13px', color: '#0f172a' }}>{p.title || p.name}</strong>
+                      {p.price_vnd ? (
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#ea580c', marginTop: '2px' }}>
+                          Từ {(p.price_vnd / 1e9).toFixed(2)} tỷ VND
+                        </div>
+                      ) : null}
+                    </div>
                   </Popup>
                 )}
               </Marker>
             );
           })}
-          {mapData?.amenities?.map((a: any, idx: number) => {
+          {filteredAmenities.map((a: any, idx: number) => {
             const lat = a.lat;
             const lng = a.lng;
             if (!lat || !lng) return null;
@@ -129,8 +176,12 @@ export const MapView: React.FC<MapViewProps> = ({ mapData }) => {
             return (
               <Marker key={`amenity-${idx}`} position={[lat, lng]} icon={getAmenityIcon(a.type)}>
                 <Popup>
-                  <div className="font-medium text-sm text-slate-800">{a.name || 'Tiện ích'}</div>
-                  <div className="text-xs text-slate-500 capitalize">{a.type || 'Khác'}</div>
+                  <div style={{ padding: '2px' }}>
+                    <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>{a.name || 'Tiện ích'}</strong>
+                    <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize', marginTop: '1px' }}>
+                      {a.type || 'Tiện ích'}
+                    </div>
+                  </div>
                 </Popup>
               </Marker>
             );
@@ -140,3 +191,4 @@ export const MapView: React.FC<MapViewProps> = ({ mapData }) => {
     </div>
   );
 };
+

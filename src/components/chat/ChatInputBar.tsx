@@ -1,4 +1,5 @@
-import { Clock3, Mic, Plus, Scale, Send, Square, X } from 'lucide-react';
+import { Mic, MicOff, Scale, Send, Sparkles, Square, X } from 'lucide-react';
+
 import { useState, useRef, useEffect } from 'react';
 import type { PropertyCardData } from '../dynamic/PropertyCard';
 
@@ -39,6 +40,7 @@ export const ChatInputBar = ({
   onClearProperties,
 }: ChatInputBarProps) => {
   const [value, setValue] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const hasChips = selectedProperties.length > 0;
@@ -57,7 +59,6 @@ export const ChatInputBar = ({
 
     const trimmed = value.trim();
     if (canCompare) {
-      // 1. Tên hiển thị thân thiện cho User thấy trên bong bóng chat (A, B, C và D)
       const rawTitles = selectedProperties.map((p) => {
         const title = p.title || p.id || 'Căn hộ';
         const duplicates = selectedProperties.filter(
@@ -71,7 +72,6 @@ export const ChatInputBar = ({
       });
       const displayTitles = formatJoinList(rawTitles);
 
-      // 2. Nội dung chi tiết kèm mã ID thật từ database (oh:3YLP08...) gửi xuống AI backend
       const rawIdsWithContext = selectedProperties
         .map((p) => (p.id ? `${p.title || 'Căn hộ'} (${p.id})` : p.title))
         .filter(Boolean) as string[];
@@ -93,6 +93,19 @@ export const ChatInputBar = ({
     setValue('');
   };
 
+  const toggleRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+    } else {
+      setIsRecording(true);
+      // Simulate speech-to-text recognition prompt
+      setTimeout(() => {
+        setValue((prev) => prev ? `${prev} tìm căn 2 phòng ngủ giá tốt` : 'Tìm căn 2 phòng ngủ giá tốt');
+        setIsRecording(false);
+      }, 1800);
+    }
+  };
+
   const getPlaceholder = () => {
     if (selectedProperties.length === 1) {
       return 'Chọn thêm ít nhất 1 căn nữa (1/4)...';
@@ -100,7 +113,7 @@ export const ChatInputBar = ({
     if (selectedProperties.length >= 2) {
       return `Nhập câu hỏi hoặc bấm Gửi để so sánh ${selectedProperties.length} căn...`;
     }
-    return 'Hỏi bất kỳ điều gì...';
+    return 'Hỏi về dự án, giá bán, tiện ích, vị trí...';
   };
 
   return (
@@ -126,6 +139,7 @@ export const ChatInputBar = ({
                         onRemoveProperty(property);
                       }}
                       aria-label="Xóa căn"
+                      title="Bỏ chọn căn này"
                     >
                       <X size={12} />
                     </button>
@@ -133,19 +147,42 @@ export const ChatInputBar = ({
                 </div>
               ))}
             </div>
-            <span className="chips-tray-counter">
-              So sánh căn hộ ({selectedProperties.length}/4)
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="chips-tray-counter">
+                Đã chọn ({selectedProperties.length}/4)
+              </span>
+              {onClearProperties && (
+                <button
+                  type="button"
+                  onClick={onClearProperties}
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--color-muted)',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: '2px 4px',
+                  }}
+                >
+                  Xóa hết
+                </button>
+              )}
+            </div>
           </div>
         )}
 
         {/* Tier 2: Input and Action controls */}
         <div className="input-main-row">
-          <button type="button" className="input-action-btn" aria-label="Đính kèm">
-            <Plus size={20} />
-          </button>
-          <button type="button" className="input-action-btn" aria-label="Lịch sử">
-            <Clock3 size={18} />
+          <button
+            type="button"
+            className="input-action-btn"
+            aria-label="Gợi ý thông minh"
+            title="Gợi ý câu hỏi"
+            onClick={() => {
+              setValue('Gợi ý cho tôi các dự án căn hộ hot nhất hiện nay');
+              inputRef.current?.focus();
+            }}
+          >
+            <Sparkles size={18} />
           </button>
 
           <div className="input-field-area">
@@ -160,13 +197,12 @@ export const ChatInputBar = ({
                   selectedProperties.length > 0 &&
                   onRemoveProperty
                 ) {
-                  // Xóa chip cuối cùng khi bấm Backspace ở ô input trống
                   onRemoveProperty(selectedProperties[selectedProperties.length - 1]);
                 } else if (event.key === 'Enter') {
                   submit();
                 }
               }}
-              placeholder={getPlaceholder()}
+              placeholder={isRecording ? 'Đang lắng nghe giọng nói của bạn...' : getPlaceholder()}
               disabled={isLoading}
             />
           </div>
@@ -183,24 +219,40 @@ export const ChatInputBar = ({
               <Square size={13} fill="currentColor" />
             </button>
           ) : (
-            <button
-              type="button"
-              className={canSubmit ? 'input-send active' : 'input-send'}
-              onClick={canSubmit ? submit : undefined}
-              aria-label={canSubmit ? 'Gửi câu hỏi / So sánh' : 'Ghi âm'}
-              title={
-                canCompare
-                  ? `Bấm để so sánh ${selectedProperties.length} căn`
-                  : canSubmit
-                  ? 'Gửi tin nhắn'
-                  : undefined
-              }
-            >
-              {canSubmit ? <Send size={18} /> : <Mic size={19} />}
-            </button>
+            <>
+              {!canSubmit ? (
+                <button
+                  type="button"
+                  className="input-action-btn"
+                  onClick={toggleRecording}
+                  aria-label={isRecording ? 'Dừng ghi âm' : 'Nhập bằng giọng nói'}
+                  title={isRecording ? 'Đang nghe...' : 'Nhập bằng giọng nói'}
+                  style={{ color: isRecording ? 'var(--color-danger)' : undefined }}
+                >
+                  {isRecording ? <MicOff size={19} /> : <Mic size={19} />}
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                className={canSubmit ? 'input-send active' : 'input-send'}
+                onClick={canSubmit ? submit : undefined}
+                aria-label={canSubmit ? 'Gửi câu hỏi / So sánh' : 'Gửi'}
+                title={
+                  canCompare
+                    ? `Bấm để so sánh ${selectedProperties.length} căn`
+                    : canSubmit
+                    ? 'Gửi tin nhắn'
+                    : undefined
+                }
+              >
+                <Send size={18} />
+              </button>
+            </>
           )}
         </div>
       </div>
     </div>
   );
 };
+

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, Scale } from 'lucide-react';
+import { ArrowDown, Calendar, Compass, Scale, Search, Sparkles } from 'lucide-react';
+
 import type { FeedbackValue, Message, Suggestion } from '../../types/agent';
 import { InlineActions } from '../dynamic/InlineActions';
 import { ProjectOptionList } from '../dynamic/ProjectOptionCard';
@@ -57,9 +58,9 @@ export const ChatArea = ({ messages, isLoading, sendMessage, onStop, submitFeedb
     }
   }, [messages, isLoading]);
 
-const stripLeadingEmoji = (text: string) => {
-  return text.replace(/^[\p{Extended_Pictographic}\p{Emoji}\u2000-\u3300\ufe0e\ufe0f\s]+/gu, '').trim() || text;
-};
+  const stripLeadingEmoji = (text: string) => {
+    return text.replace(/^[\p{Extended_Pictographic}\p{Emoji}\u2000-\u3300\ufe0e\ufe0f\s]+/gu, '').trim() || text;
+  };
 
   const selectProperty = (item: PropertyCardData) => {
     setIsCompareMode(false);
@@ -71,6 +72,7 @@ const stripLeadingEmoji = (text: string) => {
     void sendMessage(apiPayload, 'US3_DETAIL', `Giới thiệu chi tiết ${title}`);
     setTimeout(() => scrollToBottom(true), 50);
   };
+
   const propertyAction = (item: PropertyCardData, intent: string) => {
     isUserScrollingUp.current = false;
     setShowScrollButton(false);
@@ -84,6 +86,7 @@ const stripLeadingEmoji = (text: string) => {
     setTimeout(() => scrollToBottom(true), 50);
     return res;
   };
+
   const selectSuggestion = (suggestion: Suggestion, msgId?: string) => {
     if (suggestion.value === '__COMPARE_MODE__' || suggestion.label === 'So sánh các căn') {
       const targetId = msgId || lastSearchCardsMessageId;
@@ -143,9 +146,74 @@ const stripLeadingEmoji = (text: string) => {
     m => m.actions?.some(a => a.type === 'cards' && !a.is_comparison)
   )?.id;
 
+  const isInitialState = messages.length <= 1;
+
   return (
     <div className="chat-layout">
       <div className="message-feed" ref={feedRef} onScroll={handleScroll}>
+        {/* Welcome Hero Banner shown on start */}
+        {isInitialState && (
+          <div className="welcome-hero">
+            <div className="welcome-header">
+              <div className="welcome-icon-box">
+                <Sparkles size={24} />
+              </div>
+              <div>
+                <h2>Chào mừng bạn đến với Trợ lý Bất động sản AI</h2>
+                <p>
+                  Tôi có thể giúp bạn tìm kiếm giỏ hàng thực tế, so sánh chi tiết các căn hộ, phân tích pháp lý & giá bán, hoặc hỗ trợ đặt lịch xem nhà trực tiếp.
+                </p>
+              </div>
+            </div>
+
+            <div className="welcome-features">
+              <div
+                className="welcome-feature-card"
+                onClick={() => sendMessage('Tìm mua căn hộ 2 phòng ngủ giá từ 3 đến 5 tỷ', 'US1_SEARCH', 'Tìm mua căn 2PN giá 3 - 5 tỷ')}
+              >
+                <div className="feature-icon-circle"><Search size={16} /></div>
+                <div className="feature-text">
+                  <strong>Tìm mua căn hộ</strong>
+                  <span>Theo ngân sách & khu vực</span>
+                </div>
+              </div>
+
+              <div
+                className="welcome-feature-card"
+                onClick={() => sendMessage('So sánh giá bán và chính sách các phân khu Vinhomes', 'US6_COMPARE', 'So sánh các phân khu Vinhomes')}
+              >
+                <div className="feature-icon-circle"><Scale size={16} /></div>
+                <div className="feature-text">
+                  <strong>So sánh căn hộ</strong>
+                  <span>Pháp lý, giá/m², tầm nhìn</span>
+                </div>
+              </div>
+
+              <div
+                className="welcome-feature-card"
+                onClick={() => sendMessage('Xem bản đồ và các tiện ích trường học, bệnh viện quanh dự án', 'US5_MAP', 'Xem bản đồ & tiện ích lân cận')}
+              >
+                <div className="feature-icon-circle"><Compass size={16} /></div>
+                <div className="feature-text">
+                  <strong>Bản đồ & Tiện ích</strong>
+                  <span>Trường học, TTTM, công viên</span>
+                </div>
+              </div>
+
+              <div
+                className="welcome-feature-card"
+                onClick={() => sendMessage('Tôi muốn đặt lịch tham quan căn hộ mẫu', 'US2_1_VISIT', 'Đặt lịch tham quan nhà mẫu')}
+              >
+                <div className="feature-icon-circle"><Calendar size={16} /></div>
+                <div className="feature-text">
+                  <strong>Đặt lịch tham quan</strong>
+                  <span>Nhà mẫu & dự án thực tế</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {messages.map(message => {
           if (message.role === 'user') return <ChatBubbleUser key={message.id} content={message.content} />;
 
@@ -189,6 +257,11 @@ const stripLeadingEmoji = (text: string) => {
 
           return (
             <section className="agent-response" key={message.id}>
+              <div className="agent-message-header">
+                <div className="agent-avatar">AI</div>
+                <span className="agent-name">Trợ lý Bất động sản</span>
+              </div>
+
               {hasProgress && message.progress && (
                 <ProgressStatus
                   progress={message.progress}
@@ -212,9 +285,9 @@ const stripLeadingEmoji = (text: string) => {
                   {isCompareMode && isTargetCompareMessage && (
                     <div className="compare-mode-guide-banner">
                       <div className="guide-text">
-                        <Scale size={16} className="guide-icon" />
+                        <Scale size={18} className="guide-icon" />
                         <span>
-                          <strong>Chế độ so sánh:</strong> Bấm vào các thẻ để <strong>thêm hoặc bớt (2–4 căn)</strong> so sánh.
+                          <strong>Chế độ so sánh:</strong> Bấm nút <strong>+ So sánh</strong> trên các thẻ để chọn từ 2 đến 4 căn đối chiếu.
                         </span>
                       </div>
                       <button
@@ -226,7 +299,7 @@ const stripLeadingEmoji = (text: string) => {
                           setSelectedProperties([]);
                         }}
                       >
-                        Thoát
+                        Đóng
                       </button>
                     </div>
                   )}
@@ -283,7 +356,7 @@ const stripLeadingEmoji = (text: string) => {
           aria-label="Cuộn xuống tin nhắn mới nhất"
           title="Cuộn xuống dưới"
         >
-          <ArrowDown size={14} />
+          <ArrowDown size={16} />
         </button>
       )}
 
@@ -303,3 +376,4 @@ const stripLeadingEmoji = (text: string) => {
     </div>
   );
 };
+

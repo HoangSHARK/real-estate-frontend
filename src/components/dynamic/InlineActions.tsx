@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { CalendarDays, CheckCircle2, Home, MapPin, Ruler, Sofa } from 'lucide-react';
+
 import type {
   ActionCompare,
   ActionDetail,
@@ -24,12 +26,28 @@ const displayValue = (value: unknown, fallback = 'Đang cập nhật') =>
   value === null || value === undefined || value === '' ? fallback : String(value);
 
 export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
+  const [formSubmitted, setFormSubmitted] = useState(false);
   const detailAction = actions.find(action => action.type === 'detail') as ActionDetail | undefined;
   const formAction = actions.find(action => action.type === 'form') as ActionForm | undefined;
   const mapAction = actions.find(action => action.type === 'map') as ActionMap | undefined;
   const compareAction = actions.find(action => action.type === 'compare') as ActionCompare | undefined;
   const overviewAction = actions.find(action => action.type === 'overview') as ActionOverview | undefined;
   const listing = detailAction?.listing;
+
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const entries = Object.fromEntries(formData.entries());
+    const summary = Object.entries(entries)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+    setFormSubmitted(true);
+    void sendMessage(
+      `Tôi đã điền thông tin đặt lịch: ${summary}`,
+      'US2_1_VISIT',
+      'Đã gửi thông tin đặt lịch tham quan',
+    );
+  };
 
   return (
     <div className="chat-inline-actions animate-fade-in">
@@ -51,7 +69,7 @@ export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
               <h3>{listing.title || 'Thông tin căn hộ'}</h3>
               <p className="inline-listing-price">
                 {listing.price_vnd
-                  ? `${(listing.price_vnd / 1e9).toFixed(1)} tỷ VND`
+                  ? `${(listing.price_vnd / 1e9).toFixed(2)} tỷ VND`
                   : 'Liên hệ để nhận báo giá'}
               </p>
             </div>
@@ -69,6 +87,7 @@ export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
               onClick={() => sendMessage(
                 `Tôi muốn đặt lịch tham quan căn ${listing.id || listing.title || 'này'}`,
                 'US2_1_VISIT',
+                `Đặt lịch tham quan căn ${listing.title || ''}`,
               )}
             >
               <CalendarDays size={18} />
@@ -81,25 +100,38 @@ export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
       {formAction?.form && (
         <section className="inline-booking-form">
           <div className="inline-form-heading">
-            <span><CalendarDays size={20} /></span>
+            <span><CalendarDays size={22} /></span>
             <div>
-              <h3>{formAction.form.title || 'Đặt lịch tham quan'}</h3>
-              <p>{formAction.form.description || 'Vui lòng để lại thông tin, chuyên viên sẽ xác nhận lịch với bạn.'}</p>
+              <h3>{formAction.form.title || 'Đặt lịch tham quan căn hộ'}</h3>
+              <p>{formAction.form.description || 'Vui lòng để lại thông tin, chuyên viên tư vấn sẽ liên hệ xác nhận lịch với bạn trong 15 phút.'}</p>
             </div>
           </div>
-          <div className="inline-form-fields">
-            {formAction.form.fields?.map((field: any, index: number) => (
-              <label key={field.name || index}>
-                <span>{field.label}</span>
-                <input
-                  name={field.name}
-                  type={field.type === 'datetime' ? 'datetime-local' : field.type || 'text'}
-                  placeholder={field.placeholder || field.label}
-                />
-              </label>
-            ))}
-          </div>
-          <button className="inline-form-submit">Gửi yêu cầu đặt lịch</button>
+
+          {formSubmitted ? (
+            <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--color-success-soft)', border: '1px solid #a7f3d0', color: '#065f46', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <CheckCircle2 size={20} color="#059669" />
+              <span style={{ fontSize: '13.5px', fontWeight: 600 }}>Yêu cầu đặt lịch của bạn đã được ghi nhận thành công! Chuyên viên sẽ gọi điện thoại sớm nhất.</span>
+            </div>
+          ) : (
+            <form onSubmit={handleFormSubmit}>
+              <div className="inline-form-fields">
+                {formAction.form.fields?.map((field: any, index: number) => (
+                  <label key={field.name || index}>
+                    <span>{field.label}</span>
+                    <input
+                      name={field.name}
+                      type={field.type === 'datetime' ? 'datetime-local' : field.type || 'text'}
+                      placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
+                      required
+                    />
+                  </label>
+                ))}
+              </div>
+              <button type="submit" className="inline-form-submit">
+                Gửi yêu cầu đặt lịch tham quan
+              </button>
+            </form>
+          )}
         </section>
       )}
 
@@ -114,7 +146,7 @@ export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
           />
           {compareAction.summary && (
             <div className="compare-chat-summary-text">
-              <ChatTextAgent content={`💡 Tổng quan: ${compareAction.summary}`} />
+              <ChatTextAgent content={`💡 **Nhận định:** ${compareAction.summary}`} />
             </div>
           )}
         </div>
@@ -123,3 +155,4 @@ export const InlineActions = ({ actions, sendMessage }: InlineActionsProps) => {
     </div>
   );
 };
+

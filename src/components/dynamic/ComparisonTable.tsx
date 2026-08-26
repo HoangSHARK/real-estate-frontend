@@ -1,28 +1,29 @@
-import React from 'react';
-import { DollarSign, LayoutGrid } from 'lucide-react';
+import React, { useState } from 'react';
+import { DollarSign, Layers, Sparkles } from 'lucide-react';
+
 
 interface ComparisonTableProps {
   comparisonData: any;
   category?: 'financial_legal' | 'space_interior' | 'all';
   title?: string;
-  sendMessage?: (content: string, explicitIntent?: string) => Promise<void>;
+  sendMessage?: (content: string, explicitIntent?: string, displayText?: string) => Promise<void>;
 }
 
 // Dictionary mapping từ Supabase
 const SUPABASE_DICT: Record<string, string> = {
-  so_do: 'Sổ đỏ',
+  so_do: 'Sổ đỏ / Sổ hồng',
   dat_coc: 'Hợp đồng đặt cọc',
-  hdmb: 'Hợp đồng mua bán',
-  thoa_thuan: 'Thoả thuận',
-  trong: 'Đang để trống',
+  hdmb: 'Hợp đồng mua bán (HĐMB)',
+  thoa_thuan: 'Văn bản thoả thuận',
+  trong: 'Đang để trống (Giao ngay)',
   cho_thue: 'Đang cho thuê',
-  dang_o: 'Đang ở',
-  cao_cap: 'Cao cấp',
-  co_ban: 'Cơ bản',
-  co_khong_ro: 'Có',
-  day_du: 'Đầy đủ',
-  khong: 'Không',
-  tho: 'Nhà thô',
+  dang_o: 'Chủ đang ở',
+  cao_cap: 'Nội thất cao cấp',
+  co_ban: 'Nội thất cơ bản CĐT',
+  co_khong_ro: 'Đầy đủ nội thất',
+  day_du: 'Full nội thất cao cấp',
+  khong: 'Nhà thô / Không nội thất',
+  tho: 'Bàn giao thô',
 };
 
 const formatDictValue = (key?: string) => {
@@ -72,16 +73,19 @@ interface RowDefinition {
 
 export const ComparisonTable: React.FC<ComparisonTableProps> = ({
   comparisonData,
-  category = 'all',
+  category: initialCategory = 'all',
   title,
+  sendMessage,
 }) => {
+  const [activeTab, setActiveTab] = useState<'all' | 'financial_legal' | 'space_interior'>(initialCategory);
+
   if (!comparisonData || !comparisonData.listings || comparisonData.listings.length === 0) {
     return null;
   }
 
   const listings = comparisonData.listings;
 
-  // Kiểm tra dự án và tỉnh thành có khác nhau không để quyết định hiển thị
+  // Kiểm tra dự án và tỉnh thành có khác nhau không
   const distinctProjects = new Set(
     listings.map((l: any) => l.project_name || l.project_id || l.project).filter(Boolean)
   );
@@ -92,7 +96,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
   );
   const isDifferentProvince = distinctProvinces.size > 1;
 
-  // Định nghĩa các hàng cho Op1: Tài chính & Pháp lý
+  // Hàng Tài chính & Pháp lý
   const financialRows: RowDefinition[] = [
     {
       key: 'project',
@@ -102,13 +106,13 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
     },
     {
       key: 'province',
-      label: 'Tỉnh/Thành',
+      label: 'Khu vực',
       getValue: (item) => item.province || '-',
       shouldShow: isDifferentProvince,
     },
     {
       key: 'price',
-      label: 'Giá',
+      label: 'Giá tổng',
       getValue: (item) => {
         if (!item.price_vnd) return '-';
         const priceStr = `${(item.price_vnd / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} tỷ`;
@@ -131,7 +135,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
       label: 'Đơn giá / m²',
       getValue: (item) =>
         item.price_per_m2_vnd
-          ? `${Math.round(item.price_per_m2_vnd / 1e6).toLocaleString('vi-VN')} triệu/m²`
+          ? `~${Math.round(item.price_per_m2_vnd / 1e6).toLocaleString('vi-VN')} tr/m²`
           : '-',
     },
     {
@@ -154,16 +158,16 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
     },
   ];
 
-  // Định nghĩa các hàng cho Op2: Không gian & Nội thất
+  // Hàng Không gian & Nội thất
   const spaceRows: RowDefinition[] = [
     {
       key: 'bedrooms',
-      label: 'Số phòng ngủ',
+      label: 'Phòng ngủ',
       getValue: (item) => formatBedrooms(item),
     },
     {
       key: 'bathrooms',
-      label: 'Số toilet',
+      label: 'Phòng tắm / WC',
       getValue: (item) =>
         item.bathrooms && Number(item.bathrooms) > 0 ? `${item.bathrooms} WC` : '-',
     },
@@ -179,7 +183,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
     },
     {
       key: 'view',
-      label: 'View',
+      label: 'Tầm nhìn (View)',
       getValue: (item) => {
         const v = (item.view || '').trim();
         if (!v || v.toLowerCase() === 'k' || v.toLowerCase() === 'khong' || v.toLowerCase() === 'k_co' || v === '0' || v === 'null') {
@@ -190,48 +194,78 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
     },
     {
       key: 'furnishing',
-      label: 'Nội thất',
+      label: 'Bàn giao nội thất',
       getValue: (item) => formatDictValue(item.furnishing),
     },
   ];
 
-  // Chọn bộ hàng dựa trên category
   let activeRows: RowDefinition[] = [];
-  if (category === 'financial_legal') {
+  if (activeTab === 'financial_legal') {
     activeRows = financialRows.filter((r) => r.shouldShow !== false);
-  } else if (category === 'space_interior') {
+  } else if (activeTab === 'space_interior') {
     activeRows = spaceRows.filter((r) => r.shouldShow !== false);
   } else {
-    // all
     activeRows = [
       ...financialRows.filter((r) => r.shouldShow !== false),
       ...spaceRows.filter((r) => r.shouldShow !== false),
     ];
   }
 
-  const tableTitle =
-    title ||
-    (category === 'financial_legal'
-      ? 'Thông số Tài chính & Pháp lý'
-      : category === 'space_interior'
-      ? 'Thông số Không gian & Nội thất'
-      : 'Thông số so sánh các căn hộ');
-
-  const titleIcon =
-    category === 'financial_legal' ? (
-      <DollarSign size={18} />
-    ) : (
-      <LayoutGrid size={18} />
-    );
+  const tableTitle = title || 'Bảng so sánh chi tiết các căn hộ';
 
   return (
     <div className="inline-comparison-matrix">
       <div className="matrix-heading">
-        <div className="matrix-title-icon">
-          {titleIcon}
+        <div className="matrix-title-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="matrix-title-icon">
+            <Sparkles size={18} />
+          </div>
+          <div>
+            <h3>{tableTitle}</h3>
+          </div>
         </div>
-        <div>
-          <h3>{tableTitle}</h3>
+
+        {/* Tab Filters */}
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            type="button"
+            className="map-amenity-filter-btn"
+            style={{
+              background: activeTab === 'all' ? 'var(--color-accent-soft)' : undefined,
+              borderColor: activeTab === 'all' ? 'var(--color-accent)' : undefined,
+              color: activeTab === 'all' ? 'var(--color-accent-dark)' : undefined,
+              fontWeight: 700,
+            }}
+            onClick={() => setActiveTab('all')}
+          >
+            Tất cả
+          </button>
+          <button
+            type="button"
+            className="map-amenity-filter-btn"
+            style={{
+              background: activeTab === 'financial_legal' ? 'var(--color-accent-soft)' : undefined,
+              borderColor: activeTab === 'financial_legal' ? 'var(--color-accent)' : undefined,
+              color: activeTab === 'financial_legal' ? 'var(--color-accent-dark)' : undefined,
+              fontWeight: 700,
+            }}
+            onClick={() => setActiveTab('financial_legal')}
+          >
+            <DollarSign size={12} /> Giá & Pháp lý
+          </button>
+          <button
+            type="button"
+            className="map-amenity-filter-btn"
+            style={{
+              background: activeTab === 'space_interior' ? 'var(--color-accent-soft)' : undefined,
+              borderColor: activeTab === 'space_interior' ? 'var(--color-accent)' : undefined,
+              color: activeTab === 'space_interior' ? 'var(--color-accent-dark)' : undefined,
+              fontWeight: 700,
+            }}
+            onClick={() => setActiveTab('space_interior')}
+          >
+            <Layers size={12} /> Không gian
+          </button>
         </div>
       </div>
 
@@ -243,7 +277,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
                 <span>Thông số</span>
               </th>
               {listings.map((item: any, idx: number) => {
-                const colWidth = `${(100 / listings.length).toFixed(2)}%`;
+                const colWidth = `${(100 / (listings.length + 0.8)).toFixed(2)}%`;
                 return (
                   <th
                     key={item.id || idx}
@@ -251,10 +285,21 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
                     style={{ width: colWidth }}
                   >
                     <div className="matrix-card-head">
-                      <h4 title={item.title}>
+                      <h4
+                        title={item.title}
+                        onClick={() => {
+                          if (sendMessage) {
+                            const title = item.title || 'Căn hộ';
+                            const apiPayload = item.id ? `Giới thiệu chi tiết căn ${title} (${item.id})` : `Giới thiệu chi tiết ${title}`;
+                            void sendMessage(apiPayload, 'US3_DETAIL', `Giới thiệu chi tiết ${title}`);
+                          }
+                        }}
+                        style={{ cursor: sendMessage ? 'pointer' : 'default' }}
+                      >
                         {item.title || `Căn hộ ${idx + 1}`}
                       </h4>
                     </div>
+
                   </th>
                 );
               })}
@@ -266,7 +311,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
                 <td className="criteria-label">{row.label}</td>
                 {listings.map((item: any, idx: number) => {
                   const val = row.getValue(item);
-                  const isPrice = row.key === 'price' || row.key === 'unit_price';
+                  const isPrice = row.key === 'price' || row.key === 'price_per_m2';
                   return (
                     <td
                       key={`${row.key}-${item.id || idx}`}
@@ -286,3 +331,4 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
     </div>
   );
 };
+
